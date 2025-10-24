@@ -197,4 +197,19 @@ while True:
 
 if __name__ == "__main__":
     asyncio.run(main())
+# --- Keep Alive Web Server for Render Free Plan ---
+from flask import Flask
+import threading
 
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "✅ Meeting Room Bot is running on Render!"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=10000)
+
+# Start the Flask server in a background thread
+threading.Thread(target=run_flask).start()
+# --- End Keep Alive Section ---
