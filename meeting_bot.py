@@ -25,7 +25,9 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
+import os, json
+creds_json = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
+creds = Credentials.from_service_account_info(creds_json, scopes=SCOPES)
 client = gspread.authorize(creds)
 
 # ✅ use your sheet URL, not name
@@ -195,3 +197,4 @@ while True:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
