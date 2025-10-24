@@ -213,5 +213,23 @@ while True:
         time.sleep(5)
 
 
+# --- Flask Keep-Alive Server (for Render free plan) ---
+from flask import Flask
+import threading
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "✅ Meeting Room Bot is alive!"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=10000)
+
+# Start Flask in background thread
+threading.Thread(target=run_flask).start()
+
+# --- Telegram Bot Start ---
 if __name__ == "__main__":
-    asyncio.run(main())
+    print("✅ Meeting Room Bot is running...")
+    application.run_polling()
