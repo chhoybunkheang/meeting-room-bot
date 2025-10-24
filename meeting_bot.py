@@ -184,19 +184,6 @@ app.add_handler(cancel_conv)
 app.add_handler(CommandHandler("show", show))
 app.add_handler(CommandHandler("available", available))
 print("✅ Meeting Room Bot is running...")
-import time
-
-while True:
-    try:
-        app.run_polling()
-    except Exception as e:
-        print(f"⚠️ Bot error: {e}")
-        print("🔁 Restarting in 5 seconds...")
-        time.sleep(5)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
 # --- Keep Alive Web Server for Render Free Plan ---
 from flask import Flask
 import threading
@@ -213,3 +200,16 @@ def run_flask():
 # Start the Flask server in a background thread
 threading.Thread(target=run_flask).start()
 # --- End Keep Alive Section ---
+import time
+
+while True:
+    try:
+        app.run_polling()
+    except Exception as e:
+        print(f"⚠️ Bot error: {e}")
+        print("🔁 Restarting in 5 seconds...")
+        time.sleep(5)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
