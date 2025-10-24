@@ -188,18 +188,20 @@ print("✅ Meeting Room Bot is running...")
 from flask import Flask
 import threading
 
-app = Flask(__name__)
+web_app = Flask(__name__)  # ✅ use a different name (not 'app')
 
-@app.route('/')
+@web_app.route('/')
 def home():
     return "✅ Meeting Room Bot is running on Render!"
 
 def run_flask():
-    app.run(host='0.0.0.0', port=10000)
+    web_app.run(host='0.0.0.0', port=10000)
 
-# Start the Flask server in a background thread
 threading.Thread(target=run_flask).start()
 # --- End Keep Alive Section ---
+
+# ✅ Start your Telegram bot (keep this line after Flask starts)
+application.run_polling()
 import time
 
 while True:
