@@ -109,28 +109,50 @@ async def available(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📅 Booked slots:\n" + "\n".join(booked))
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🗓 Enter the date of your booking to cancel:")
-    return DATE
+    user = update.message.from_user
+    records = sheet.get_all_records()
 
-async def confirm_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    date_input = update.message.text
-    date_obj = dateparser.parse(date_input)
-    if not date_obj:
-        await update.message.reply_text("❌ Invalid date. Try again.")
-        return DATE
-    context.user_data["cancel_date"] = date_obj.strftime("%d/%m/%Y")
-    await update.message.reply_text("⏰ Enter the time range to cancel:")
+    # Find all bookings by this user
+    user_bookings = [
+        (i + 2, row) for i, row in enumerate(records)
+        if str(row.get("TelegramID")) == str(user.id)
+    ]
+
+    if not user_bookings:
+        await update.message.reply_text("❌ You don’t have any bookings to cancel.")
+        return ConversationHandler.END
+
+    # Build the list to show user
+    message = "🗓 *Your Bookings:*\n\n"
+    for idx, (row_num, row) in enumerate(user_bookings, start=1):
+        message += f"{idx}. {row['Date']} | {row['Time']}\n"
+
+    message += "\nReply with the *number* of the booking you want to delete:"
+    await update.message.reply_text(message, parse_mode="Markdown")
+
+    context.user_data["user_bookings"] = user_bookings
     return TIME
 
-async def do_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    time_input = update.message.text
-    user = update.message.from_user
-    date_str = context.user_data["cancel_date"]
 
-    if cancel_booking(user.id, date_str, time_input):
-        await update.message.reply_text("✅ Booking canceled successfully.")
-    else:
-        await update.message.reply_text("❌ No matching booking found.")
+async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_input = update.message.text
+    user_bookings = context.user_data.get("user_bookings", [])
+
+    try:
+        choice = int(user_input)
+    except ValueError:
+        await update.message.reply_text("❌ Please enter a valid number.")
+        return TIME
+
+    if not (1 <= choice <= len(user_bookings)):
+        await update.message.reply_text("❌ Invalid choice. Try again.")
+        return TIME
+
+    # Find row to delete in Google Sheet
+    row_index = user_bookings[choice - 1][0]
+    sheet.delete_rows(row_index)
+
+    await update.message.reply_text("✅ Booking canceled successfully.")
     return ConversationHandler.END
 
 # ===================== MAIN =====================
@@ -149,11 +171,10 @@ if __name__ == "__main__":
         fallbacks=[],
     )
 
-    cancel_conv = ConversationHandler(
+   cancel_conv = ConversationHandler(
         entry_points=[CommandHandler("cancel", cancel)],
         states={
-            DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_cancel)],
-            TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, do_cancel)],
+            TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_booking_by_number)],
         },
         fallbacks=[],
     )
@@ -165,3 +186,4 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("available", available))
 
     app.run_polling()
+
