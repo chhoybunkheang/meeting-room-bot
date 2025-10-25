@@ -202,6 +202,8 @@ def main():
             TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_booking_by_number)],
         },
         fallbacks=[],
+        per_chat=True,
+        per_user=True,
     )
 
     app.add_handler(CommandHandler("start", start))
