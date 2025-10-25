@@ -13,7 +13,7 @@ from telegram.ext import (
 from telegram.request import HTTPXRequest
 
 # ===================== CONFIG =====================
-TOKEN = os.getenv("BOT_TOKEN")  # Use Render environment variable
+TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1vvBRrL-qXx0jp5-ZRR4xVpOi5ejxE8DtxrHOrel7F78"
 GROUP_CHAT_ID = -1003073406158  
 DATE, TIME = range(2)
