@@ -15,6 +15,7 @@ from telegram.request import HTTPXRequest
 # ===================== CONFIG =====================
 TOKEN = os.getenv("BOT_TOKEN")  # Use Render environment variable
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1vvBRrL-qXx0jp5-ZRR4xVpOi5ejxE8DtxrHOrel7F78"
+GROUP_CHAT_ID = -1003073406158  
 DATE, TIME = range(2)
 
 # ===================== GOOGLE SHEETS =====================
@@ -62,7 +63,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Commands:\n"
         "/book - Book the meeting room\n"
         "/show - Show all bookings\n"
-        "/available - Check available times\n"
+        "/available - Check booked times\n"
         "/cancel - Cancel your booking"
     )
 
@@ -80,6 +81,7 @@ async def get_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏰ Now enter the time range (e.g. 14:00-15:00):")
     return TIME
 
+# ✅ When user books — announce to group
 async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     time_input = update.message.text
     user = update.message.from_user
@@ -88,8 +90,27 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     success = save_booking(date_str, time_input, user.first_name, user.id)
     if success:
         await update.message.reply_text(f"✅ Booking confirmed for {date_str} at {time_input}.")
+
+        # --- Send group announcement ---
+        records = sheet.get_all_records()
+        message = (
+            f"📢 *New Booking Added!*\n\n"
+            f"👤 {user.first_name}\n"
+            f"🗓 {date_str} | {time_input}\n\n"
+            f"📋 *Current Schedule:*\n"
+        )
+
+        for row in records:
+            message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
+
+        await context.bot.send_message(
+            chat_id=GROUP_CHAT_ID,
+            text=message,
+            parse_mode="Markdown"
+        )
     else:
         await update.message.reply_text("❌ That slot is already booked.")
+
     return ConversationHandler.END
 
 async def show(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -105,14 +126,17 @@ async def show(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def available(update: Update, context: ContextTypes.DEFAULT_TYPE):
     records = sheet.get_all_records()
+    if not records:
+        await update.message.reply_text("✅ All time slots are available.")
+        return
     booked = [f"{r['Date']} {r['Time']}" for r in records]
     await update.message.reply_text("📅 Booked slots:\n" + "\n".join(booked))
 
+# ✅ Cancel by number (private only)
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     records = sheet.get_all_records()
 
-    # Find all bookings by this user
     user_bookings = [
         (i + 2, row) for i, row in enumerate(records)
         if str(row.get("TelegramID")) == str(user.id)
@@ -122,7 +146,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ You don’t have any bookings to cancel.")
         return ConversationHandler.END
 
-    # Build the list to show user
     message = "🗓 *Your Bookings:*\n\n"
     for idx, (row_num, row) in enumerate(user_bookings, start=1):
         message += f"{idx}. {row['Date']} | {row['Time']}\n"
@@ -148,11 +171,13 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
         await update.message.reply_text("❌ Invalid choice. Try again.")
         return TIME
 
-    # Find row to delete in Google Sheet
     row_index = user_bookings[choice - 1][0]
+    row_data = user_bookings[choice - 1][1]
     sheet.delete_rows(row_index)
 
-    await update.message.reply_text("✅ Booking canceled successfully.")
+    await update.message.reply_text(
+        f"✅ Booking on {row_data['Date']} at {row_data['Time']} has been canceled."
+    )
     return ConversationHandler.END
 
 # ===================== MAIN =====================
@@ -160,10 +185,6 @@ def main():
     request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
 
-    # 🔹 Command to get topic ID
-    app.add_handler(CommandHandler("getid", getid))
-
-    # 🔹 Book conversation
     book_conv = ConversationHandler(
         entry_points=[CommandHandler("book", book)],
         states={
@@ -173,7 +194,6 @@ def main():
         fallbacks=[],
     )
 
-    # 🔹 Cancel conversation
     cancel_conv = ConversationHandler(
         entry_points=[CommandHandler("cancel", cancel)],
         states={
@@ -182,7 +202,6 @@ def main():
         fallbacks=[],
     )
 
-    # 🔹 Add all handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(book_conv)
     app.add_handler(cancel_conv)
@@ -192,9 +211,5 @@ def main():
     print("✅ Meeting Room Bot is running...")
     app.run_polling()
 
-
 if __name__ == "__main__":
     main()
-
-
-
