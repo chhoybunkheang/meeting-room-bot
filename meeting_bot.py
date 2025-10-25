@@ -16,7 +16,7 @@ from telegram.request import HTTPXRequest
 TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1vvBRrL-qXx0jp5-ZRR4xVpOi5ejxE8DtxrHOrel7F78"
 GROUP_CHAT_ID = -1003073406158  
-DATE, TIME = range(2)
+DATE, TIME, CANCEL_SELECT = range(3)
 
 # ===================== GOOGLE SHEETS =====================
 SCOPES = [
@@ -137,6 +137,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     records = sheet.get_all_records()
 
+    # Find all bookings by this user
     user_bookings = [
         (i + 2, row) for i, row in enumerate(records)
         if str(row.get("TelegramID")) == str(user.id)
@@ -146,6 +147,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ You don’t have any bookings to cancel.")
         return ConversationHandler.END
 
+    # Show list of bookings to the user
     message = "🗓 *Your Bookings:*\n\n"
     for idx, (row_num, row) in enumerate(user_bookings, start=1):
         message += f"{idx}. {row['Date']} | {row['Time']}\n"
@@ -154,7 +156,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message, parse_mode="Markdown")
 
     context.user_data["user_bookings"] = user_bookings
-    return TIME
+    return CANCEL_SELECT
 
 
 async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -165,19 +167,17 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
         choice = int(user_input)
     except ValueError:
         await update.message.reply_text("❌ Please enter a valid number.")
-        return TIME
+        return CANCEL_SELECT
 
     if not (1 <= choice <= len(user_bookings)):
         await update.message.reply_text("❌ Invalid choice. Try again.")
-        return TIME
+        return CANCEL_SELECT
 
+    # Delete selected booking
     row_index = user_bookings[choice - 1][0]
-    row_data = user_bookings[choice - 1][1]
     sheet.delete_rows(row_index)
 
-    await update.message.reply_text(
-        f"✅ Booking on {row_data['Date']} at {row_data['Time']} has been canceled."
-    )
+    await update.message.reply_text("✅ Booking canceled successfully.")
     return ConversationHandler.END
 
 # ===================== MAIN =====================
@@ -197,13 +197,13 @@ def main():
     )
 
     cancel_conv = ConversationHandler(
-        entry_points=[CommandHandler("cancel", cancel)],
-        states={
-            TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_booking_by_number)],
-        },
-        fallbacks=[],
-        per_chat=True,
-        per_user=True,
+    entry_points=[CommandHandler("cancel", cancel)],
+    states={
+        CANCEL_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_booking_by_number)],
+    },
+    fallbacks=[],
+    per_chat=True,
+    per_user=True,
     )
 
     app.add_handler(CommandHandler("start", start))
@@ -217,3 +217,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
