@@ -192,6 +192,8 @@ def main():
             TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_time)],
         },
         fallbacks=[],
+        per_chat=True,
+        per_user=True,
     )
 
     cancel_conv = ConversationHandler(
