@@ -156,12 +156,14 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
     return ConversationHandler.END
 
 # ===================== MAIN =====================
-if __name__ == "__main__":
-    print("✅ Meeting Room Bot is running...")
-
+def main():
     request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
 
+    # 🔹 Command to get topic ID
+    app.add_handler(CommandHandler("getid", getid))
+
+    # 🔹 Book conversation
     book_conv = ConversationHandler(
         entry_points=[CommandHandler("book", book)],
         states={
@@ -171,7 +173,8 @@ if __name__ == "__main__":
         fallbacks=[],
     )
 
-   cancel_conv = ConversationHandler(
+    # 🔹 Cancel conversation
+    cancel_conv = ConversationHandler(
         entry_points=[CommandHandler("cancel", cancel)],
         states={
             TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_booking_by_number)],
@@ -179,11 +182,19 @@ if __name__ == "__main__":
         fallbacks=[],
     )
 
+    # 🔹 Add all handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(book_conv)
     app.add_handler(cancel_conv)
     app.add_handler(CommandHandler("show", show))
     app.add_handler(CommandHandler("available", available))
 
+    print("✅ Meeting Room Bot is running...")
     app.run_polling()
+
+
+if __name__ == "__main__":
+    main()
+
+
 
