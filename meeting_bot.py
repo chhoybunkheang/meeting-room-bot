@@ -163,22 +163,56 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text
     user_bookings = context.user_data.get("user_bookings", [])
+    user = update.message.from_user
 
     try:
         choice = int(user_input)
     except ValueError:
         await update.message.reply_text("❌ Please enter a valid number.")
-        return CANCEL_SELECT
+        return TIME
 
     if not (1 <= choice <= len(user_bookings)):
         await update.message.reply_text("❌ Invalid choice. Try again.")
-        return CANCEL_SELECT
+        return TIME
 
-    # Delete selected booking
-    row_index = user_bookings[choice - 1][0]
+    # Find and delete the selected booking
+    row_index, booking = user_bookings[choice - 1]
+    canceled_date = booking["Date"]
+    canceled_time = booking["Time"]
     sheet.delete_rows(row_index)
 
-    await update.message.reply_text("✅ Booking canceled successfully.")
+    # Confirm to user
+    await update.message.reply_text(
+        f"✅ Canceled booking on {canceled_date} at {canceled_time}."
+    )
+
+    # Get updated list of bookings
+    records = sheet.get_all_records()
+
+    if records:
+        message = "📋 *Updated Schedule:*\n"
+        for row in records:
+            message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
+    else:
+        message = "📋 No bookings left."
+
+    # Create group announcement
+    announcement = (
+        f"❌ *{user.first_name}* canceled the booking:\n"
+        f"📅 {canceled_date} | ⏰ {canceled_time}\n\n"
+        f"{message}"
+    )
+
+    # Send to group
+    try:
+        await context.bot.send_message(
+            chat_id=GROUP_CHAT_ID,
+            text=announcement,
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        print(f"⚠️ Could not send group message: {e}")
+
     return ConversationHandler.END
 
 # ===================== MAIN =====================
@@ -232,5 +266,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
