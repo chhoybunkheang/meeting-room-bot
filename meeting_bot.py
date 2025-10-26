@@ -116,13 +116,28 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show(update: Update, context: ContextTypes.DEFAULT_TYPE):
     records = sheet.get_all_records()
+
     if not records:
         await update.message.reply_text("📋 No bookings yet.")
         return
 
-    message = "📋 *Current Bookings:*\n"
+    # Sort by date + time
+    def sort_key(row):
+        try:
+            date_obj = datetime.strptime(row["Date"], "%d/%m/%Y")
+            time_start = row["Time"].split("-")[0] if "-" in row["Time"] else row["Time"]
+            time_obj = datetime.strptime(time_start, "%H:%M")
+            return (date_obj, time_obj)
+        except Exception:
+            return (datetime.max, datetime.max)
+
+    records.sort(key=sort_key)
+
+    # Build schedule message
+    message = "📋 *Current Schedule (old → new):*\n\n"
     for row in records:
         message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
+
     await update.message.reply_text(message, parse_mode="Markdown")
 
 async def available(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -266,6 +281,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
