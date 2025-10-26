@@ -11,6 +11,7 @@ from telegram.ext import (
     filters, ContextTypes, ConversationHandler
 )
 from telegram.request import HTTPXRequest
+from telegram import BotCommand
 
 # ===================== CONFIG =====================
 TOKEN = os.getenv("BOT_TOKEN")
@@ -185,6 +186,20 @@ def main():
     request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
 
+     # --- Set Bot Menu Commands ---
+    commands = [
+        BotCommand("start", "Start the bot"),
+        BotCommand("book", "Book the room"),
+        BotCommand("show", "Show all bookings"),
+        BotCommand("available", "Check avai-times"),
+        BotCommand("cancel", "Cancel booking"),
+    ]
+
+    async def set_commands(application):
+        await application.bot.set_my_commands(commands)
+
+    # ✅ Properly register post_init handler
+    app.post_init = set_commands
     book_conv = ConversationHandler(
         entry_points=[CommandHandler("book", book)],
         states={
@@ -217,4 +232,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
