@@ -263,69 +263,41 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
 ADMIN_ID = 171208804  # Replace with your Telegram ID
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    if user.id != ADMIN_ID:
-        await update.message.reply_text("🚫 You are not authorized to view statistics.")
-        return
-
-    log_user_action(user, "/stats")
-
-    spreadsheet = client.open_by_url(SPREADSHEET_URL)
+    """Show summary of all users' actions."""
     try:
+        spreadsheet = client.open_by_url(SPREADSHEET_URL)
         stats_sheet = spreadsheet.worksheet("UserStats")
-    except gspread.exceptions.WorksheetNotFound:
-        stats_sheet = spreadsheet.add_worksheet(title="UserStats", rows="1000", cols="4")
-        stats_sheet.append_row(["TelegramID", "Name", "Command", "DateTime"])
+        records = stats_sheet.get_all_records()
 
-    # ✅ Ensure headers exist
-    headers = stats_sheet.row_values(1)
-    if headers != ["TelegramID", "Name", "Command", "DateTime"]:
-        stats_sheet.update(
-            values=[["TelegramID", "Name", "Command", "DateTime"]],
-            range_name="A1:D1"
-        )
+        if not records:
+            await update.message.reply_text("📊 No user activity data yet.")
+            return
 
-    # ✅ Fetch user activity records
-    records = stats_sheet.get_all_records()
-    if not records:
-        await update.message.reply_text("📊 No user data found.")
-        return
+        # --- Group by user ---
+        summary = {}
+        for row in records:
+            name = row["Name"]
+            action = row["Command"]
+            summary.setdefault(name, {"total": 0, "actions": {}})
+            summary[name]["total"] += 1
+            summary[name]["actions"][action] = summary[name]["actions"].get(action, 0) + 1
+            summary[name]["last_action"] = row["DateTime"]
 
-    # ✅ Build a summary of actions per user
-    summary = {}
-    for row in records:
-        name = row.get("Name", "Unknown")
-        command = row.get("Command", "")
-        datetime_str = row.get("DateTime", "N/A")
+        # --- Build reply message ---
+        message = "📊 *All User Activity Summary:*\n\n"
+        for name, info in summary.items():
+            message += f"👤 *{name}*\n"
+            message += f"🕒 Last Action: {info['last_action']}\n"
+            message += f"📈 Total Actions: {info['total']}\n"
+            for cmd, count in info["actions"].items():
+                message += f"   • {cmd}: {count}\n"
+            message += "\n"
 
-        if name not in summary:
-            summary[name] = {
-                "total": 0,
-                "last_action": datetime_str,
-                "commands": {}
-            }
+        await update.message.reply_text(message, parse_mode="Markdown")
 
-        summary[name]["total"] += 1
-        summary[name]["commands"][command] = summary[name]["commands"].get(command, 0) + 1
-        summary[name]["last_action"] = datetime_str  # last seen time
-
-    # ✅ Build a nice readable message
-    message = "📊 *User Activity Summary:*\n\n"
-    for name, data in summary.items():
-        message += f"👤 *{name}*\n"
-        message += f"🕒 Last Action: `{data['last_action']}`\n"
-        message += f"📈 Total Actions: {data['total']}\n"
-        for cmd, count in data["commands"].items():
-            message += f"   • {cmd}: {count}\n"
-        message += "\n"
-
-    # ✅ Send the summary
-    await update.message.reply_text(message, parse_mode="Markdown")
-
-# ===================== MAIN =====================
-def main():
-    request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
-    app = ApplicationBuilder().token(TOKEN).request(request).build()
+    except Exception as e:
+        print(f"⚠️ Error generating stats: {e}")
+        await update.message.reply_text("⚠️ Could not retrieve stats.")
 
      # --- Set Bot Menu Commands ---
     commands = [
@@ -373,6 +345,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
