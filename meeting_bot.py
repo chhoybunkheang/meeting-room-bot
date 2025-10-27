@@ -298,6 +298,10 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print(f"⚠️ Error generating stats: {e}")
         await update.message.reply_text("⚠️ Could not retrieve stats.")
+        
+def main():
+    request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
+    app = ApplicationBuilder().token(TOKEN).request(request).build()
 
      # --- Set Bot Menu Commands ---
     commands = [
@@ -345,6 +349,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 if __name__ == "__main__":
     main()
+
 
 
 
