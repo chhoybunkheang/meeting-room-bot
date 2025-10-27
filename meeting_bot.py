@@ -74,6 +74,8 @@ def cancel_booking(telegram_id, date_str, time_str):
 
 # ===================== BOT COMMANDS =====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    log_user_action(user, "/start")
     await update.message.reply_text(
         "👋 Welcome to the Meeting Room Bot!\n\n"
         "Commands:\n"
@@ -84,6 +86,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    log_user_action(user, "/book")
     await update.message.reply_text("📅 Please enter the date (e.g. 25/10/2025):")
     return DATE
 
@@ -130,6 +134,8 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def show(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    log_user_action(user, "/show")
     records = sheet.get_all_records()
 
     if not records:
@@ -156,6 +162,8 @@ async def show(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message, parse_mode="Markdown")
 
 async def available(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    log_user_action(user, "/available")
     records = sheet.get_all_records()
     if not records:
         await update.message.reply_text("✅ All time slots are available.")
@@ -165,6 +173,8 @@ async def available(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ✅ Cancel by number (private only)
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    log_user_action(user, "/cencel")
     user = update.message.from_user
     records = sheet.get_all_records()
 
@@ -358,6 +368,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
