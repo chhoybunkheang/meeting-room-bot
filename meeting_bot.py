@@ -29,8 +29,23 @@ creds_json = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
 creds = Credentials.from_service_account_info(creds_json, scopes=SCOPES)
 client = gspread.authorize(creds)
 sheet = client.open_by_url(SPREADSHEET_URL).sheet1
+spreadsheet = client.open_by_url(SPREADSHEET_URL)
+try:
+    stats_sheet = spreadsheet.worksheet("UserStats")
+except gspread.exceptions.WorksheetNotFound:
+    stats_sheet = spreadsheet.add_worksheet(title="UserStats", rows="1000", cols="4")
+    stats_sheet.append_row(["TelegramID", "Name", "Command", "DateTime"])
 
 # ===================== HELPER FUNCTIONS =====================
+#====================== Statistics ==============================
+def log_user_action(user, command):
+    """Log each user command to the 'UserStats' sheet."""
+    try:
+        now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        stats_sheet.append_row([str(user.id), user.first_name, command, now])
+    except Exception as e:
+        print(f"⚠️ Could not log action: {e}")
+        
 def is_slot_taken(date_str, time_str):
     records = sheet.get_all_records()
     for row in records:
@@ -230,6 +245,68 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
 
     return ConversationHandler.END
 
+ADMIN_ID = 171208804  # Replace with your Telegram ID
+
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    if user.id != ADMIN_ID:
+        await update.message.reply_text("🚫 You are not authorized to view statistics.")
+        return
+
+    log_user_action(user, "/stats")
+
+    spreadsheet = client.open_by_url(SPREADSHEET_URL)
+    try:
+        stats_sheet = spreadsheet.worksheet("UserStats")
+    except gspread.exceptions.WorksheetNotFound:
+        stats_sheet = spreadsheet.add_worksheet(title="UserStats", rows="1000", cols="4")
+        stats_sheet.append_row(["TelegramID", "Name", "Command", "DateTime"])
+
+    # ✅ Ensure headers exist
+    headers = stats_sheet.row_values(1)
+    if headers != ["TelegramID", "Name", "Command", "DateTime"]:
+        stats_sheet.update(
+            values=[["TelegramID", "Name", "Command", "DateTime"]],
+            range_name="A1:D1"
+        )
+
+    # ✅ Fetch user activity records
+    records = stats_sheet.get_all_records()
+    if not records:
+        await update.message.reply_text("📊 No user data found.")
+        return
+
+    # ✅ Build a summary of actions per user
+    summary = {}
+    for row in records:
+        name = row.get("Name", "Unknown")
+        command = row.get("Command", "")
+        datetime_str = row.get("DateTime", "N/A")
+
+        if name not in summary:
+            summary[name] = {
+                "total": 0,
+                "last_action": datetime_str,
+                "commands": {}
+            }
+
+        summary[name]["total"] += 1
+        summary[name]["commands"][command] = summary[name]["commands"].get(command, 0) + 1
+        summary[name]["last_action"] = datetime_str  # last seen time
+
+    # ✅ Build a nice readable message
+    message = "📊 *User Activity Summary:*\n\n"
+    for name, data in summary.items():
+        message += f"👤 *{name}*\n"
+        message += f"🕒 Last Action: `{data['last_action']}`\n"
+        message += f"📈 Total Actions: {data['total']}\n"
+        for cmd, count in data["commands"].items():
+            message += f"   • {cmd}: {count}\n"
+        message += "\n"
+
+    # ✅ Send the summary
+    await update.message.reply_text(message, parse_mode="Markdown")
+
 # ===================== MAIN =====================
 def main():
     request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
@@ -269,7 +346,7 @@ def main():
     per_chat=True,
     per_user=True,
     )
-
+    app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("start", start))
     app.add_handler(book_conv)
     app.add_handler(cancel_conv)
@@ -281,6 +358,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
