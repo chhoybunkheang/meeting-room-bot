@@ -39,14 +39,17 @@ except gspread.exceptions.WorksheetNotFound:
 
 # ===================== HELPER FUNCTIONS =====================
 #====================== Statistics ==============================
+
 def log_user_action(user, command):
-    """Log each user command to the 'UserStats' sheet."""
+    """Log each user command to the 'UserStats' sheet (Phnom Penh time)."""
     try:
-        now = datetime.now (ZoneInfo ("Asia/Phnom_Penh"))
-        now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        stats_sheet.append_row([str(user.id), user.first_name, command, now])
+        now = datetime.now(ZoneInfo("Asia/Phnom_Penh"))
+        now_str = now.strftime("%d/%m/%Y %H:%M:%S")
+        stats_sheet.append_row([str(user.id), user.first_name, command, now_str])
+        print(f"✅ Logged {command} by {user.first_name} at {now_str}")
     except Exception as e:
         print(f"⚠️ Could not log action: {e}")
+
         
 def is_slot_taken(date_str, time_str):
     records = sheet.get_all_records()
@@ -370,6 +373,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
