@@ -6,6 +6,7 @@ import asyncio
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 from telegram import Update
+from zoneinfo import ZoneInfo
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     filters, ContextTypes, ConversationHandler
@@ -41,6 +42,7 @@ except gspread.exceptions.WorksheetNotFound:
 def log_user_action(user, command):
     """Log each user command to the 'UserStats' sheet."""
     try:
+        now = datetime.now (ZoneInfo ("Asia/Phnom_Penh"))
         now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         stats_sheet.append_row([str(user.id), user.first_name, command, now])
     except Exception as e:
@@ -368,6 +370,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
