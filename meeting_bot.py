@@ -411,25 +411,34 @@ async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
 def main():
     request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
-    job_queue = app.job_queue
-if job_queue is None:
-    print("⚠️ Job queue not initialized. Please install job queue support.")
 
+    # Initialize job queue safely
+    job_queue = getattr(app, "job_queue", None)
+    if not job_queue:
+        try:
+            from telegram.ext import JobQueue
+            job_queue = JobQueue()
+            job_queue.set_application(app)
+            job_queue.start()
+            print("✅ Job queue manually initialized.")
+        except Exception as e:
+            print(f"⚠️ Could not initialize job queue: {e}")
 
-     # --- Set Bot Menu Commands ---
+    # --- Set Bot Menu Commands ---
     commands = [
         BotCommand("start", "Start the bot"),
         BotCommand("book", "Book the room"),
         BotCommand("show", "Show all bookings"),
-        BotCommand("available", "Check avai-times"),
+        BotCommand("available", "Check available times"),
         BotCommand("cancel", "Cancel booking"),
     ]
 
     async def set_commands(application):
         await application.bot.set_my_commands(commands)
 
-    # ✅ Properly register post_init handler
     app.post_init = set_commands
+
+    # --- Conversations ---
     book_conv = ConversationHandler(
         entry_points=[CommandHandler("book", book)],
         states={
@@ -442,14 +451,16 @@ if job_queue is None:
     )
 
     cancel_conv = ConversationHandler(
-    entry_points=[CommandHandler("cancel", cancel)],
-    states={
-        CANCEL_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_booking_by_number)],
-    },
-    fallbacks=[],
-    per_chat=True,
-    per_user=True,
+        entry_points=[CommandHandler("cancel", cancel)],
+        states={
+            CANCEL_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_booking_by_number)],
+        },
+        fallbacks=[],
+        per_chat=True,
+        per_user=True,
     )
+
+    # --- Handlers ---
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("start", start))
     app.add_handler(book_conv)
@@ -457,16 +468,17 @@ if job_queue is None:
     app.add_handler(CommandHandler("show", show))
     app.add_handler(CommandHandler("available", available))
 
-    print("✅ Meeting Room Bot is running...")
+    # --- Schedule auto cleanup ---
     job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
     print("🕒 Auto-cleanup scheduled every 1 hour.")
-    print("✅ Bot started successfully. Waiting for messages...")
-
+    print("✅ Meeting Room Bot is running...")
 
     app.run_polling()
 
+
 if __name__ == "__main__":
     main()
+
 
 
 
