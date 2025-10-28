@@ -6,3 +6,5 @@ google-auth-httplib2
 dateparser
 apscheduler
 flask
+python-telegram-bot[job-queue]
+
