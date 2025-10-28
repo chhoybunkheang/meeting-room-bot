@@ -290,7 +290,7 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
 
     # Create group announcement
     announcement = (
-        f"❌ *{user.first_name}* canceled the booking:\n"
+        f"❌ {user.first_name} *canceled* the booking:\n"
         f"📅 {canceled_date} | ⏰ {canceled_time}\n\n"
         f"{message}"
     )
@@ -390,9 +390,9 @@ async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
             sheet.append_row([r["Date"], r["Time"], r["Name"], r["TelegramID"]])
 
         # Announce in group
-        message = "🕒 *Expired meetings removed automatically:*\n"
+        message = "🕒 *Expired meetings removed:*\n"
         for r in removed:
-            message += f"❌ {r}\n"
+            message += f"🧹 {r}\n"
 
         if updated_records:
             message += "\n📋 *Updated Schedule:*\n"
@@ -479,6 +479,7 @@ def main():
 if __name__ == "__main__":
         main()
     
+
 
 
 
