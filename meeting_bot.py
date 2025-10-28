@@ -308,13 +308,15 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
     return ConversationHandler.END
 
 ADMIN_ID = 171208804  # Replace with your Telegram ID
-if update.message.from_user.id != ADMIN_ID:
-    await update.message.reply_text("🚫 You are not authorized to use this command.")
-    return
-
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show summary of all users' actions."""
+
+    # ✅ Only allow admin
+    if update.message.from_user.id != ADMIN_ID:
+        await update.message.reply_text("🚫 You are not authorized to use this command.")
+        return
+
     try:
         spreadsheet = client.open_by_url(SPREADSHEET_URL)
         stats_sheet = spreadsheet.worksheet("UserStats")
@@ -349,6 +351,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print(f"⚠️ Error generating stats: {e}")
         await update.message.reply_text("⚠️ Could not retrieve stats.")
+
 
 async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
     """Automatically remove expired meetings and announce updates."""
@@ -464,6 +467,7 @@ if job_queue is None:
 
 if __name__ == "__main__":
     main()
+
 
 
 
