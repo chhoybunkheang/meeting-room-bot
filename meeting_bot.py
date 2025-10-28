@@ -226,7 +226,7 @@ async def available(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ✅ Cancel by number (private only)
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    log_user_action(user, "/cencel")
+    log_user_action(user, "/cancel")
     user = update.message.from_user
     records = sheet.get_all_records()
 
@@ -308,6 +308,10 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
     return ConversationHandler.END
 
 ADMIN_ID = 171208804  # Replace with your Telegram ID
+if update.message.from_user.id != ADMIN_ID:
+    await update.message.reply_text("🚫 You are not authorized to use this command.")
+    return
+
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show summary of all users' actions."""
@@ -405,8 +409,9 @@ def main():
     request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
     job_queue = app.job_queue
-    if job_queue is None:
-        job_queue = app.job_queue = app._init_job_queue()
+if job_queue is None:
+    print("⚠️ Job queue not initialized. Please install job queue support.")
+
 
      # --- Set Bot Menu Commands ---
     commands = [
@@ -451,10 +456,15 @@ def main():
 
     print("✅ Meeting Room Bot is running...")
     job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
+    print("🕒 Auto-cleanup scheduled every 1 hour.")
+    print("✅ Bot started successfully. Waiting for messages...")
+
+
     app.run_polling()
 
 if __name__ == "__main__":
     main()
+
 
 
 
