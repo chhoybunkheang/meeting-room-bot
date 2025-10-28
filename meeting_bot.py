@@ -3,6 +3,7 @@ import json
 import gspread
 import dateparser
 import asyncio
+import pytz
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 from telegram import Update
@@ -344,10 +345,68 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print(f"⚠️ Error generating stats: {e}")
         await update.message.reply_text("⚠️ Could not retrieve stats.")
+
+async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
+    """Automatically remove expired meetings and announce updates."""
+    now = datetime.now(pytz.timezone("Asia/Phnom_Penh"))
+    records = sheet.get_all_records()
+
+    removed = []
+    updated_records = []
+
+    for row in records:
+        try:
+            date_str = row["Date"]
+            time_str = row["Time"]
+            name = row["Name"]
+
+            # Parse date/time from the record
+            start_time_str = time_str.split("-")[0]
+            end_time_str = time_str.split("-")[-1]
+
+            meeting_end = datetime.strptime(f"{date_str} {end_time_str}", "%d/%m/%Y %H:%M")
+            meeting_end = pytz.timezone("Asia/Phnom_Penh").localize(meeting_end)
+
+            if meeting_end < now:
+                removed.append(f"{date_str} | {time_str} | {name}")
+            else:
+                updated_records.append(row)
+        except Exception as e:
+            print(f"⚠️ Error parsing record: {e}")
+
+    # If we found expired ones — update the sheet
+    if removed:
+        # Clear and re-write only valid rows
+        sheet.clear()
+        sheet.append_row(["Date", "Time", "Name", "TelegramID"])
+        for r in updated_records:
+            sheet.append_row([r["Date"], r["Time"], r["Name"], r["TelegramID"]])
+
+        # Announce in group
+        message = "🕒 *Expired meetings removed automatically:*\n"
+        for r in removed:
+            message += f"❌ {r}\n"
+
+        if updated_records:
+            message += "\n📋 *Updated Schedule:*\n"
+            for row in updated_records:
+                message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
+        else:
+            message += "\n✅ No more meetings left."
+
+        await context.bot.send_message(
+            chat_id=GROUP_CHAT_ID,
+            text=message,
+            parse_mode="Markdown"
+        )
+#========================== Main =================================================================================================
         
 def main():
     request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
+    job_queue = app.job_queue
+    if job_queue is None:
+        job_queue = app.job_queue = app._init_job_queue()
 
      # --- Set Bot Menu Commands ---
     commands = [
@@ -391,10 +450,12 @@ def main():
     app.add_handler(CommandHandler("available", available))
 
     print("✅ Meeting Room Bot is running...")
+    job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
     app.run_polling()
 
 if __name__ == "__main__":
     main()
+
 
 
 
