@@ -477,15 +477,9 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
         main()
-    except Exception as e:
-        import traceback
-        if "Conflict" in str(e):
-            print("⚠️ Bot conflict detected: another instance is running. Stopping this one.")
-        else:
-            print("❌ Unexpected error:")
-            traceback.print_exc()
+    
+
 
 
 
