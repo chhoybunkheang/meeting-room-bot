@@ -58,12 +58,43 @@ def is_slot_taken(date_str, time_str):
             return True
     return False
 
+def time_to_minutes(time_str):
+    """Convert 'HH:MM' to total minutes for easy comparison."""
+    h, m = map(int, time_str.split(":"))
+    return h * 60 + m
+
+
+def is_overlapping(existing_start, existing_end, new_start, new_end):
+    """Check if two time ranges overlap."""
+    return not (new_end <= existing_start or new_start >= existing_end)
+
+
 def save_booking(date_str, time_str, name, telegram_id):
-    """Save a booking if the slot is free."""
-    if is_slot_taken(date_str, time_str):
-        return False
+    """Save a booking only if the time range does not overlap with existing ones."""
+    try:
+        new_start_str, new_end_str = time_str.split("-")
+        new_start = time_to_minutes(new_start_str.strip())
+        new_end = time_to_minutes(new_end_str.strip())
+    except ValueError:
+        # Invalid time format
+        return "invalid"
+
+    records = sheet.get_all_records()
+    for row in records:
+        if row.get("Date") == date_str:
+            try:
+                exist_start_str, exist_end_str = row["Time"].split("-")
+                exist_start = time_to_minutes(exist_start_str.strip())
+                exist_end = time_to_minutes(exist_end_str.strip())
+
+                if is_overlapping(exist_start, exist_end, new_start, new_end):
+                    return "overlap"
+            except Exception:
+                continue
+
+    # If no overlap → save
     sheet.append_row([date_str, time_str, name, str(telegram_id)])
-    return True
+    return "success"
 
 def cancel_booking(telegram_id, date_str, time_str):
     records = sheet.get_all_records()
@@ -112,29 +143,44 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     date_str = context.user_data["date"]
 
-    success = save_booking(date_str, time_input, user.first_name, user.id)
-    if success:
-        await update.message.reply_text(f"✅ Booking confirmed for {date_str} at {time_input}.")
+    result = save_booking(date_str, time_input, user.first_name, user.id)
 
-        # --- Send group announcement ---
-        records = sheet.get_all_records()
-        message = (
-            f"📢 *New Booking Added!*\n\n"
-            f"👤 {user.first_name}\n"
-            f"🗓 {date_str} | {time_input}\n\n"
-            f"📋 *Current Schedule:*\n"
+    if result == "invalid":
+        await update.message.reply_text(
+            "❌ Invalid time format.\nPlease use HH:MM-HH:MM (e.g. 14:00-15:00):"
+        )
+        return TIME  # 🔁 Ask again (don’t end conversation)
+
+    elif result == "overlap":
+        await update.message.reply_text(
+            "⚠️ That time overlaps with another booking.\nPlease choose a different time range:"
+        )
+        return TIME  # 🔁 Ask again
+
+    elif result == "success":
+        await update.message.reply_text(
+            f"✅ Booking confirmed for {date_str} at {time_input}."
         )
 
-        for row in records:
-            message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
+        # --- Send announcement to group ---
+        try:
+            records = sheet.get_all_records()
+            message = (
+                f"📢 *New Booking Added!*\n\n"
+                f"👤 {user.first_name}\n"
+                f"🗓 {date_str} | ⏰ {time_input}\n\n"
+                f"📋 *Current Schedule:*\n"
+            )
+            for row in records:
+                message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
 
-        await context.bot.send_message(
-            chat_id=GROUP_CHAT_ID,
-            text=message,
-            parse_mode="Markdown"
-        )
-    else:
-        await update.message.reply_text("❌ That slot is already booked.")
+            await context.bot.send_message(
+                chat_id=GROUP_CHAT_ID,
+                text=message,
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            print(f"⚠️ Could not send group message: {e}")
 
     return ConversationHandler.END
 
@@ -349,6 +395,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
