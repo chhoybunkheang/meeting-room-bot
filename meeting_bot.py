@@ -129,11 +129,18 @@ async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return DATE
 
 async def get_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    date_input = update.message.text
+    date_input = update.message.text.strip()
+
+    # If user didn’t include a year, add current year
+    if len(date_input.split("/")) == 2:
+        current_year = datetime.now().year
+        date_input = f"{date_input}/{current_year}"
+
     date_obj = dateparser.parse(date_input)
     if not date_obj:
-        await update.message.reply_text("❌ Invalid date format. Try again (e.g. 25/10/2025).")
+        await update.message.reply_text("❌ Invalid date format. Try again (e.g. 25/10/2025 or 25/10).")
         return DATE
+
     context.user_data["date"] = date_obj.strftime("%d/%m/%Y")
     await update.message.reply_text("⏰ Now enter the time range (e.g. 14:00-15:00):")
     return TIME
@@ -290,7 +297,7 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
 
     # Create group announcement
     announcement = (
-        f"❌ {user.first_name} *canceled* the booking:\n"
+        f"❌ {user.first_name} *CANCEL* the booking:\n"
         f"📅 {canceled_date} | ⏰ {canceled_time}\n\n"
         f"{message}"
     )
@@ -479,6 +486,7 @@ def main():
 if __name__ == "__main__":
         main()
     
+
 
 
 
