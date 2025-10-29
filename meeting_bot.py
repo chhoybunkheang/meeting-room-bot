@@ -125,7 +125,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/book")
-    await update.message.reply_text("📅 Please enter the date (e.g. 25/10/2025, 25/10):")
+    await update.message.reply_text("📅 Please enter the date (e.g. 25/10/2025 or 25/10):")
     return DATE
 
 async def get_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -138,7 +138,7 @@ async def get_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     date_obj = dateparser.parse(date_input)
     if not date_obj:
-        await update.message.reply_text("❌ Invalid date format. Try again (e.g. 25/10/2025, 25/10).")
+        await update.message.reply_text("❌ Invalid date format. Try again (e.g. 25/10/2025 or 25/10).")
         return DATE
 
     context.user_data["date"] = date_obj.strftime("%d/%m/%Y")
@@ -486,6 +486,7 @@ def main():
 if __name__ == "__main__":
         main()
     
+
 
 
 
