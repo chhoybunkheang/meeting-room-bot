@@ -530,6 +530,17 @@ def main():
         per_chat=True,
         per_user=True,
     )
+    announce_conv = ConversationHandler(
+    entry_points=[CommandHandler("announce", announce)],
+    states={
+        ANNOUNCE_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_announcement)],
+        },
+        fallbacks=[],
+        per_user=True,
+        per_chat=True,
+    )
+
+
 
     # --- Handlers ---
     app.add_handler(CommandHandler("stats", stats))
@@ -538,7 +549,7 @@ def main():
     app.add_handler(cancel_conv)
     app.add_handler(CommandHandler("show", show))
     app.add_handler(CommandHandler("available", available))
-    app.add_handler(CommandHandler("announce", announce))
+    app.add_handler(announce_conv)
     app.add_handler(CommandHandler("clean", auto_cleanup))
 
     # --- Schedule auto cleanup ---
@@ -554,6 +565,7 @@ if __name__ == "__main__":
     main()
 
     
+
 
 
 
