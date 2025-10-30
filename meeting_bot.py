@@ -418,11 +418,12 @@ async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )    
 # ================= CLEAR WEBHOOK ===================
-async def clear_webhook():
+async def clear_webhook(bot_token):
     """Ensure the bot is in polling mode (not webhook)."""
-    bot = Bot("7963509731:AAHagupkmnb4Dd1ZbXemj_ijISMgeRRU9OE")
+    bot = Bot(bot_token)
     await bot.delete_webhook(drop_pending_updates=True)
     print("✅ Webhook cleared successfully!")
+
 
 # ===================== MAIN =====================
 def main():
@@ -451,6 +452,8 @@ def main():
 
     async def set_commands(application):
         await application.bot.set_my_commands(commands)
+        # ✅ Clear webhook inside same loop
+        await clear_webhook(TOKEN)
 
     app.post_init = set_commands
 
@@ -489,14 +492,15 @@ def main():
     print("🕒 Auto-cleanup scheduled every 1 hour.")
     print("✅ Meeting Room Bot is running...")
 
-    # ✅ Run async part correctly
-    asyncio.run(clear_webhook())  # run before polling
+    # ✅ Run the polling (now webhook cleared safely inside loop)
     app.run_polling()
 
 
 if __name__ == "__main__":
     main()
+
     
+
 
 
 
