@@ -453,6 +453,7 @@ def main():
     admin_commands = user_commands + [
         BotCommand("announce", "Send announcement to group"),
         BotCommand("stats", "View all user activity"),
+        Botcommand("clean", "Clean up expired bookings"),
     ]
 
     # --- Set different menus for user vs admin ---
@@ -497,6 +498,8 @@ def main():
     app.add_handler(cancel_conv)
     app.add_handler(CommandHandler("show", show))
     app.add_handler(CommandHandler("available", available))
+    app.add_handler(CommandHandler("announce", announce))
+    app.add_handler(CommandHandler("clean", clean)
 
     # --- Schedule auto cleanup ---
     job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
@@ -511,6 +514,7 @@ if __name__ == "__main__":
     main()
 
     
+
 
 
 
