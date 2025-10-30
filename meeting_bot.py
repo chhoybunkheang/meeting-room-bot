@@ -136,14 +136,18 @@ async def get_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
         current_year = datetime.now().year
         date_input = f"{date_input}/{current_year}"
 
-    date_obj = dateparser.parse(date_input)
+    # ✅ Force day/month/year format
+    date_obj = dateparser.parse(date_input, settings={"DATE_ORDER": "DMY"})
+
     if not date_obj:
         await update.message.reply_text("❌ Invalid date format. Try again (e.g. 25/10/2025 or 25/10).")
         return DATE
 
+    # ✅ Save consistent dd/mm/yyyy format
     context.user_data["date"] = date_obj.strftime("%d/%m/%Y")
     await update.message.reply_text("⏰ Now enter the time range (e.g. 14:00-15:00):")
     return TIME
+
 
 # ✅ When user books — announce to group
 async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -486,6 +490,7 @@ def main():
 if __name__ == "__main__":
         main()
     
+
 
 
 
