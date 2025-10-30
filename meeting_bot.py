@@ -416,12 +416,7 @@ async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
             chat_id=GROUP_CHAT_ID,
             text=message,
             parse_mode="Markdown"
-        )
-async def clear_webhook():
-    bot = Bot("7963509731:AAHagupkmnb4Dd1ZbXemj_ijISMgeRRU9OE")
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("Webhook cleared successfully!")
-        
+        )        
 #========================== Main =================================================================================================
         
 def main():
@@ -488,13 +483,13 @@ def main():
     job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
     print("🕒 Auto-cleanup scheduled every 1 hour.")
     print("✅ Meeting Room Bot is running...")
-    asyncio.run(clear_webhook())
     app.run_polling()
 
 
 if __name__ == "__main__":
         main()
     
+
 
 
 
