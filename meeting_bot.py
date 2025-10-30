@@ -453,7 +453,7 @@ def main():
     admin_commands = user_commands + [
         BotCommand("announce", "Send announcement to group"),
         BotCommand("stats", "View all user activity"),
-        Botcommand("clean", "Clean up expired bookings"),
+        BotCommand("clean", "Clean up expired bookings"),
     ]
 
     # --- Set different menus for user vs admin ---
@@ -514,6 +514,7 @@ if __name__ == "__main__":
     main()
 
     
+
 
 
 
