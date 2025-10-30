@@ -6,7 +6,7 @@ import asyncio
 import pytz
 from datetime import datetime
 from google.oauth2.service_account import Credentials
-from telegram import Update
+from telegram import Bot, Update
 from zoneinfo import ZoneInfo
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
