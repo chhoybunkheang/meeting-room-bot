@@ -418,7 +418,7 @@ async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
 async def clear_webhook():
-    bot = Bot("YOUR_BOT_TOKEN")
+    bot = Bot("7963509731:AAHagupkmnb4Dd1ZbXemj_ijISMgeRRU9OE")
     await bot.delete_webhook(drop_pending_updates=True)
     print("Webhook cleared successfully!")
         
