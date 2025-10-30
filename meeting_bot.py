@@ -10,7 +10,7 @@ from telegram import Bot, Update
 from zoneinfo import ZoneInfo
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
-    filters, ContextTypes, ConversationHandler
+    filters, ContextTypes, ConversationHandler, JobQueue
 )
 from telegram.request import HTTPXRequest
 from telegram import BotCommand
@@ -441,8 +441,8 @@ def main():
         except Exception as e:
             print(f"⚠️ Could not initialize job queue: {e}")
 
-    # --- Set Bot Menu Commands ---
-    commands = [
+    # --- Define commands for user and admin ---
+    user_commands = [
         BotCommand("start", "Start the bot"),
         BotCommand("book", "Book the room"),
         BotCommand("show", "Show all bookings"),
@@ -450,9 +450,20 @@ def main():
         BotCommand("cancel", "Cancel booking"),
     ]
 
+    admin_commands = user_commands + [
+        BotCommand("announce", "Send announcement to group"),
+        BotCommand("stats", "View all user activity"),
+    ]
+
+    # --- Set different menus for user vs admin ---
     async def set_commands(application):
-        await application.bot.set_my_commands(commands)
-        # ✅ Clear webhook inside same loop
+        # Normal users
+        await application.bot.set_my_commands(user_commands, scope={"type": "default"})
+        # Admin only
+        await application.bot.set_my_commands(admin_commands, scope={"type": "chat", "chat_id": ADMIN_ID})
+        print("✅ Command menus set for users and admin.")
+
+        # Clear webhook safely
         await clear_webhook(TOKEN)
 
     app.post_init = set_commands
@@ -500,6 +511,7 @@ if __name__ == "__main__":
     main()
 
     
+
 
 
 
