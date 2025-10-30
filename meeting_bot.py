@@ -20,6 +20,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1vvBRrL-qXx0jp5-ZRR4xVpOi5ejxE8DtxrHOrel7F78"
 GROUP_CHAT_ID = -1003073406158  
 DATE, TIME, CANCEL_SELECT = range(3)
+ANNOUNCE_MESSAGE = range(1)
 
 # ===================== GOOGLE SHEETS =====================
 SCOPES = [
@@ -362,7 +363,46 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print(f"⚠️ Error generating stats: {e}")
         await update.message.reply_text("⚠️ Could not retrieve stats.")
+        
+#==================================== announcement===========================================================================================
+async def announce(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Step 1: Admin starts the announce command."""
+    user = update.message.from_user
+    if user.id != ADMIN_ID:
+        await update.message.reply_text("🚫 You are not authorized to use this command.")
+        return ConversationHandler.END
 
+    await update.message.reply_text("📝 Please type your announcement message:")
+    return ANNOUNCE_MESSAGE
+
+
+async def send_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Step 2: Send the admin’s message to the group."""
+    user = update.message.from_user
+    message_text = update.message.text.strip()
+
+    if user.id != ADMIN_ID:
+        await update.message.reply_text("🚫 You are not authorized to use this command.")
+        return ConversationHandler.END
+
+    if not message_text:
+        await update.message.reply_text("⚠️ Empty message, please type something or /cancel.")
+        return ANNOUNCE_MESSAGE
+
+    # --- Send to group ---
+    try:
+        await context.bot.send_message(
+            chat_id=GROUP_CHAT_ID,
+            text=f"📢 *Announcement:*\n\n{message_text}",
+            parse_mode="Markdown"
+        )
+        await update.message.reply_text("✅ Announcement sent successfully!")
+        print(f"✅ Admin sent announcement: {message_text}")
+    except Exception as e:
+        await update.message.reply_text("⚠️ Failed to send announcement.")
+        print(f"⚠️ Announcement error: {e}")
+
+    return ConversationHandler.END
 
 async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
     """Automatically remove expired meetings and announce updates."""
@@ -499,7 +539,7 @@ def main():
     app.add_handler(CommandHandler("show", show))
     app.add_handler(CommandHandler("available", available))
     app.add_handler(CommandHandler("announce", announce))
-    app.add_handler(CommandHandler("clean", clean))
+    app.add_handler(CommandHandler("clean", auto_cleanup))
 
     # --- Schedule auto cleanup ---
     job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
@@ -514,6 +554,7 @@ if __name__ == "__main__":
     main()
 
     
+
 
 
 
