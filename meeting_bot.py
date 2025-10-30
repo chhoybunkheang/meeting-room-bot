@@ -416,18 +416,23 @@ async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
             chat_id=GROUP_CHAT_ID,
             text=message,
             parse_mode="Markdown"
-        )        
-#========================== Main =================================================================================================
-        
+        )    
+# ================= CLEAR WEBHOOK ===================
+async def clear_webhook():
+    """Ensure the bot is in polling mode (not webhook)."""
+    bot = Bot("7963509731:AAHagupkmnb4Dd1ZbXemj_ijISMgeRRU9OE")
+    await bot.delete_webhook(drop_pending_updates=True)
+    print("✅ Webhook cleared successfully!")
+
+# ===================== MAIN =====================
 def main():
     request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
 
-    # Initialize job queue safely
+    # ✅ Initialize job queue safely
     job_queue = getattr(app, "job_queue", None)
     if not job_queue:
         try:
-            from telegram.ext import JobQueue
             job_queue = JobQueue()
             job_queue.set_application(app)
             job_queue.start()
@@ -483,12 +488,16 @@ def main():
     job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
     print("🕒 Auto-cleanup scheduled every 1 hour.")
     print("✅ Meeting Room Bot is running...")
+
+    # ✅ Run async part correctly
+    asyncio.run(clear_webhook())  # run before polling
     app.run_polling()
 
 
 if __name__ == "__main__":
-        main()
+    main()
     
+
 
 
 
