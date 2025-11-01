@@ -422,27 +422,29 @@ async def send_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return ConversationHandler.END
 
+ # ===================== AUTO CLEANUP OLD BOOKINGS ==================================================================
+    
 async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
-    """Automatically remove expired meetings and announce updates."""
+    """Automatically remove expired meetings, rebuild the sheet safely, and announce updates."""
     now = datetime.now(pytz.timezone("Asia/Phnom_Penh"))
     records = sheet.get_all_records()
 
     removed = []
     updated_records = []
 
+    # --- Identify expired and valid records ---
     for row in records:
         try:
             date_str = row["Date"]
             time_str = row["Time"]
             name = row["Name"]
 
-            # Parse date/time from the record
-            start_time_str = time_str.split("-")[0]
-            end_time_str = time_str.split("-")[-1]
-
-            meeting_end = datetime.strptime(f"{date_str} {end_time_str}", "%d/%m/%Y %H:%M")
+            # Parse meeting end time
+            start_time_str, end_time_str = time_str.split("-")
+            meeting_end = datetime.strptime(f"{date_str} {end_time_str.strip()}", "%d/%m/%Y %H:%M")
             meeting_end = pytz.timezone("Asia/Phnom_Penh").localize(meeting_end)
 
+            # Compare to current time
             if meeting_end < now:
                 removed.append(f"{date_str} | {time_str} | {name}")
             else:
@@ -450,32 +452,54 @@ async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             print(f"⚠️ Error parsing record: {e}")
 
-    # If we found expired ones — update the sheet
+    # --- If expired meetings found, rebuild the sheet ---
     if removed:
-        # Clear and re-write only valid rows
-        sheet.clear()
-        sheet.append_row(["Date", "Time", "Name", "TelegramID"])
-        for r in updated_records:
-            sheet.append_row([r["Date"], r["Time"], r["Name"], r["TelegramID"]])
+        try:
+            headers = ["Date", "Time", "Name", "TelegramID"]
+            sheet.clear()
 
-        # Announce in group
-        message = "🕒 *Expired meetings removed:*\n"
-        for r in removed:
-            message += f"🧹 {r}\n"
+            # Prepare new data: headers + valid rows
+            new_data = [headers]
+            for r in updated_records:
+                date_val = r.get("Date", "")
+                time_val = r.get("Time", "")
+                name_val = r.get("Name", "")
+                id_val = r.get("TelegramID", "")
+                new_data.append([date_val, time_val, name_val, id_val])
 
-        if updated_records:
-            message += "\n📋 *Updated Schedule:*\n"
-            for row in updated_records:
-                message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
-        else:
-            message += "\n✅ No more meetings left."
+            # ✅ Write all at once (faster and cleaner)
+            sheet.update("A1", new_data)
+            print("✅ Sheet successfully rewritten with updated records.")
 
-        await context.bot.send_message(
-            chat_id=GROUP_CHAT_ID,
-            text=message,
-            parse_mode="Markdown"
-        )    
-# ================= CLEAR WEBHOOK ===================
+            # --- Announce in group ---
+            message = "🕒 *Expired Meetings Removed:*\n"
+            for r in removed:
+                message += f"🧹 {r}\n"
+
+            if updated_records:
+                message += "\n📋 *Updated Schedule:*\n"
+                for row in updated_records:
+                    message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
+            else:
+                message += "\n✅ No meetings left in the schedule."
+
+            await context.bot.send_message(
+                chat_id=GROUP_CHAT_ID,
+                text=message,
+                parse_mode="Markdown"
+            )
+
+        except Exception as e:
+            print(f"⚠️ Error rewriting sheet: {e}")
+            await context.bot.send_message(
+                chat_id=GROUP_CHAT_ID,
+                text="⚠️ Cleanup failed due to a sheet update error.",
+                parse_mode="Markdown"
+            )
+    else:
+        print("✅ No expired meetings found during cleanup.")
+        
+# ================= CLEAR WEBHOOK =============================================================================================================
 async def clear_webhook(bot_token):
     """Ensure the bot is in polling mode (not webhook)."""
     bot = Bot(bot_token)
@@ -583,6 +607,7 @@ if __name__ == "__main__":
     main()
 
     
+
 
 
 
