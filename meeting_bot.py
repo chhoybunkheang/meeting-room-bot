@@ -118,7 +118,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/book")
-    await update.message.reply_text("📅 Please enter the date (e.g. 25/10/2025 or 25/10):")
+    await update.message.reply_text("📅 Please enter the date (e.g. 30/10/2025 or 30/10):")
     return DATE
 
 #============================================== Get Date ()===========================================================
@@ -583,6 +583,7 @@ if __name__ == "__main__":
     main()
 
     
+
 
 
 
