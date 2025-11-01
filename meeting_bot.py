@@ -110,7 +110,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👋 Welcome to the Meeting Room Bot!\n\n"
         "Commands:\n"
         "/book - Book the meeting room\n"
-        "/show - Show all bookings\n"
+        "/sort - Show sorted bookings\n"
         "/available - Check booked times\n"
         "/cancel - Cancel your booking"
     )
@@ -217,7 +217,7 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    log_user_action(user, "/show")
+    log_user_action(user, "/sort")
     records = sheet.get_all_records()
 
     if not records:
@@ -527,7 +527,7 @@ def main():
     user_commands = [
         BotCommand("start", "Start the bot"),
         BotCommand("book", "Book the room"),
-        BotCommand("show", "Show all bookings"),
+        BotCommand("sort", "Show sorted booking "),
         BotCommand("available", "Check available times"),
         BotCommand("cancel", "Cancel booking"),
     ]
@@ -589,7 +589,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(book_conv)
     app.add_handler(cancel_conv)
-    app.add_handler(CommandHandler("show", show))
+    app.add_handler(CommandHandler("sort", show))
     app.add_handler(CommandHandler("available", available))
     app.add_handler(announce_conv)
     app.add_handler(CommandHandler("clean", auto_cleanup))
@@ -607,6 +607,7 @@ if __name__ == "__main__":
     main()
 
     
+
 
 
 
