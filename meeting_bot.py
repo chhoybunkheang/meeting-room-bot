@@ -603,24 +603,29 @@ def main():
 if __name__ == "__main__":
     import asyncio
 
-    try:
-        # Notify admin that the bot is starting
+    async def start_and_monitor():
         bot = Bot(token=TOKEN)
-        asyncio.run(notify_admin(bot, "✅ Bot has started successfully and is now running."))
-        print("✅ Admin notified: bot started.")
-
-        # Start the bot normally
-        main()
-
-    except Exception as e:
-        print(f"❌ BOT ERROR: {e}")
         try:
-            bot = Bot(token=TOKEN)
-            asyncio.run(notify_admin(bot, f"🚨 Bot stopped or crashed!\nError: {e}"))
-        except Exception as inner_e:
-            print(f"⚠️ Failed to send crash alert: {inner_e}")
+            # ✅ Notify admin that bot is starting
+            await notify_admin(bot, "✅ Bot has started successfully and is now running.")
+            print("✅ Admin notified: bot started.")
+
+            # Run bot (this blocks until stopped or crashed)
+            main()
+
+        except Exception as e:
+            print(f"❌ BOT ERROR: {e}")
+            try:
+                await notify_admin(bot, f"🚨 Bot stopped or crashed!\nError: {e}")
+            except Exception as inner_e:
+                print(f"⚠️ Failed to send crash alert: {inner_e}")
+
+    # ✅ Properly run in async environment
+    asyncio.run(start_and_monitor())
+
 
     
+
 
 
 
