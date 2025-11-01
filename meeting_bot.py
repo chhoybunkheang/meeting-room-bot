@@ -52,14 +52,6 @@ def log_user_action(user, command):
     except Exception as e:
         print(f"⚠️ Could not log action: {e}")
 
-        
-def is_slot_taken(date_str, time_str):
-    records = sheet.get_all_records()
-    for row in records:
-        if row["Date"] == date_str and row["Time"] == time_str:
-            return True
-    return False
-
 def time_to_minutes(time_str):
     """Convert 'HH:MM' to total minutes for easy comparison."""
     h, m = map(int, time_str.split(":"))
@@ -129,53 +121,83 @@ async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📅 Please enter the date (e.g. 25/10/2025 or 25/10):")
     return DATE
 
+#============================================== Get Date ()===========================================================
+
 async def get_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     date_input = update.message.text.strip()
 
-    # If user didn’t include a year, add current year
-    if len(date_input.split("/")) == 2:
-        current_year = datetime.now().year
-        date_input = f"{date_input}/{current_year}"
+    # ✅ Validate format using regex before parsing
+    if not re.match(r"^\d{1,2}/\d{1,2}(/?\d{2,4})?$", date_input):
+        await update.message.reply_text("❌ Please enter date in format DD/MM or DD/MM/YYYY.")
+        return DATE
 
-    # ✅ Force day/month/year format
+    # Add current year if user omits it
+    if len(date_input.split("/")) == 2:
+        date_input = f"{date_input}/{datetime.now().year}"
+
+    # Parse with DMY order to ensure correct format
     date_obj = dateparser.parse(date_input, settings={"DATE_ORDER": "DMY"})
 
     if not date_obj:
-        await update.message.reply_text("❌ Invalid date format. Try again (e.g. 25/10/2025 or 25/10).")
+        await update.message.reply_text("❌ Invalid date. Try again (example: 25/10 or 25/10/2025).")
         return DATE
 
-    # ✅ Save consistent dd/mm/yyyy format
+    # Check if date is in the past
+    if date_obj.date() < datetime.now().date():
+        await update.message.reply_text("⚠️ The date you entered is in the past. Please choose a future date.")
+        return DATE
+
+    # Save valid date
     context.user_data["date"] = date_obj.strftime("%d/%m/%Y")
-    await update.message.reply_text("⏰ Now enter the time range (e.g. 14:00-15:00):")
+    await update.message.reply_text("⏰ Great! Now enter the time range (e.g. 14:00-15:00):")
     return TIME
 
 
-# ✅ When user books — announce to group
-async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    time_input = update.message.text
-    user = update.message.from_user
-    date_str = context.user_data["date"]
+#==================================================== Get_time()======================================================================
 
+# ✅ When user books — announce to group
+import re
+from datetime import datetime
+
+async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    time_input = update.message.text.strip()
+    user = update.message.from_user
+    date_str = context.user_data.get("date")
+
+    # ✅ Validate time format (HH:MM-HH:MM)
+    if not re.match(r"^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}$", time_input):
+        await update.message.reply_text("❌ Invalid time format. Use HH:MM-HH:MM (e.g. 09:00-10:30).")
+        return TIME
+
+    # Parse and validate time range
+    start_str, end_str = [t.strip() for t in time_input.split("-")]
+    try:
+        start_time = datetime.strptime(start_str, "%H:%M")
+        end_time = datetime.strptime(end_str, "%H:%M")
+    except ValueError:
+        await update.message.reply_text("❌ Invalid time values. Please check your input again.")
+        return TIME
+
+    # Check logical order (start < end)
+    if end_time <= start_time:
+        await update.message.reply_text("⚠️ End time must be later than start time.")
+        return TIME
+
+    # Check overlap and save
     result = save_booking(date_str, time_input, user.first_name, user.id)
 
-    if result == "invalid":
-        await update.message.reply_text(
-            "❌ Invalid time format.\nPlease use HH:MM-HH:MM (e.g. 14:00-15:00):"
-        )
-        return TIME  # 🔁 Ask again (don’t end conversation)
+    if result == "overlap":
+        await update.message.reply_text("⚠️ That time overlaps with another booking. Please choose another slot.")
+        return TIME
 
-    elif result == "overlap":
-        await update.message.reply_text(
-            "⚠️ That time overlaps with another booking.\nPlease choose a different time range:"
-        )
-        return TIME  # 🔁 Ask again
+    elif result == "invalid":
+        await update.message.reply_text("❌ Could not save booking. Please try again.")
+        return TIME
 
     elif result == "success":
-        await update.message.reply_text(
-            f"✅ Booking confirmed for {date_str} at {time_input}."
-        )
+        await update.message.reply_text(f"✅ Booking confirmed for {date_str} at {time_input}.")
 
-        # --- Send announcement to group ---
+        # Announce to group
         try:
             records = sheet.get_all_records()
             message = (
@@ -187,11 +209,7 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for row in records:
                 message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
 
-            await context.bot.send_message(
-                chat_id=GROUP_CHAT_ID,
-                text=message,
-                parse_mode="Markdown"
-            )
+            await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode="Markdown")
         except Exception as e:
             print(f"⚠️ Could not send group message: {e}")
 
@@ -565,6 +583,7 @@ if __name__ == "__main__":
     main()
 
     
+
 
 
 
