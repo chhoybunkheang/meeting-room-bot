@@ -601,8 +601,9 @@ def main():
 
 
 if __name__ == "__main__":
+    main()
   # ================= ADMIN NOTIFICATION HANDLERS =====================
-
+"""
 async def notify_admin_startup(bot: Bot):
     """Notify admin when the bot starts or restarts."""
     try:
@@ -760,7 +761,7 @@ if __name__ == "__main__":
             loop.run_until_complete(loop.shutdown_asyncgens())
             loop.close()
         except Exception as inner_e:
-            print(f"⚠️ Failed to send crash alert: {inner_e}")
+            print(f"⚠️ Failed to send crash alert: {inner_e}") """
 
     
 
