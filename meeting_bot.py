@@ -496,8 +496,17 @@ async def clear_webhook(bot_token):
     await bot.delete_webhook(drop_pending_updates=True)
     print("✅ Webhook cleared successfully!")
 
+#======================================== Notify_admin when stop or crash ===================================  
+     
+async def notify_admin(bot, message: str):
+    """Send a notification message to the admin."""
+    try:
+        await bot.send_message(chat_id=ADMIN_ID, text=f"⚠️ [Bot Alert]\n\n{message}")
+        print(f"✅ Sent alert to admin: {message}")
+    except Exception as e:
+        print(f"⚠️ Failed to notify admin: {e}")
 
-# ===================== MAIN =====================
+# ================================================== MAIN ==========================================================================================
 def main():
     request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
@@ -592,9 +601,27 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+
+    try:
+        # Notify admin that the bot is starting
+        bot = Bot(token=TOKEN)
+        asyncio.run(notify_admin(bot, "✅ Bot has started successfully and is now running."))
+        print("✅ Admin notified: bot started.")
+
+        # Start the bot normally
+        main()
+
+    except Exception as e:
+        print(f"❌ BOT ERROR: {e}")
+        try:
+            bot = Bot(token=TOKEN)
+            asyncio.run(notify_admin(bot, f"🚨 Bot stopped or crashed!\nError: {e}"))
+        except Exception as inner_e:
+            print(f"⚠️ Failed to send crash alert: {inner_e}")
 
     
+
 
 
 
