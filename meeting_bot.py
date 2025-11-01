@@ -243,16 +243,6 @@ async def show(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(message, parse_mode="Markdown")
 
-async def available(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    log_user_action(user, "/available")
-    records = sheet.get_all_records()
-    if not records:
-        await update.message.reply_text("✅ All time slots are available.")
-        return
-    booked = [f"{r['Date']} {r['Time']}" for r in records]
-    await update.message.reply_text("📅 Booked slots:\n" + "\n".join(booked))
-
 # ✅ Cancel by number (private only)
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -528,7 +518,6 @@ def main():
         BotCommand("start", "Start the bot"),
         BotCommand("book", "Book the room"),
         BotCommand("sort", "Show sorted booking "),
-        BotCommand("available", "Check available times"),
         BotCommand("cancel", "Cancel booking"),
     ]
 
@@ -590,7 +579,6 @@ def main():
     app.add_handler(book_conv)
     app.add_handler(cancel_conv)
     app.add_handler(CommandHandler("sort", show))
-    app.add_handler(CommandHandler("available", available))
     app.add_handler(announce_conv)
     app.add_handler(CommandHandler("clean", auto_cleanup))
 
@@ -607,6 +595,7 @@ if __name__ == "__main__":
     main()
 
     
+
 
 
 
