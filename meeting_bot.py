@@ -603,28 +603,37 @@ def main():
 if __name__ == "__main__":
     import asyncio
 
-    async def start_and_monitor():
+    async def notify_start():
         bot = Bot(token=TOKEN)
+        await notify_admin(bot, "✅ Bot has started successfully and is now running.")
+
+    async def notify_crash(error):
+        bot = Bot(token=TOKEN)
+        await notify_admin(bot, f"🚨 Bot stopped or crashed!\nError: {error}")
+
+    try:
+        # ✅ Notify admin before starting the bot (outside the bot’s own loop)
+        asyncio.run(notify_start())
+        print("✅ Admin notified: bot started.")
+
+        # Run the Telegram bot (this blocks until stopped or crashed)
+        main()
+
+    except Exception as e:
+        print(f"❌ BOT ERROR: {e}")
         try:
-            # ✅ Notify admin that bot is starting
-            await notify_admin(bot, "✅ Bot has started successfully and is now running.")
-            print("✅ Admin notified: bot started.")
+            asyncio.run(notify_crash(e))
+        except RuntimeError:
+            # Handles 'Cannot close a running event loop' gracefully
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(notify_crash(e))
+        except Exception as inner_e:
+            print(f"⚠️ Failed to send crash alert: {inner_e}")
 
-            # Run bot (this blocks until stopped or crashed)
-            main()
-
-        except Exception as e:
-            print(f"❌ BOT ERROR: {e}")
-            try:
-                await notify_admin(bot, f"🚨 Bot stopped or crashed!\nError: {e}")
-            except Exception as inner_e:
-                print(f"⚠️ Failed to send crash alert: {inner_e}")
-
-    # ✅ Properly run in async environment
-    asyncio.run(start_and_monitor())
 
 
     
+
 
 
 
