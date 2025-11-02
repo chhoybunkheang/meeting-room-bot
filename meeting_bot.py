@@ -600,19 +600,25 @@ def main():
 
 
 if __name__ == "__main__":
-
     try:
         main()
+
     except Exception as e:
         print(f"❌ BOT ERROR: {e}")
-    try:
-        loop = asyncio.new_event_loop()
-        loop.run_until_complete(notify_admin(Bot(token=TOKEN), f"Bot crashed: {e}"))
-    except Exception as inner_e:
-        print(f"⚠️ Failed to send crash alert: {inner_e}")
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            bot = Bot(token=TOKEN)
+            loop.run_until_complete(
+                notify_admin(bot, f"⚠️ [Bot Alert]\n\nBot stopped or crashed.\nError: {e}")
+            )
+        except Exception as inner_e:
+            print(f"⚠️ Failed to send crash alert: {inner_e}")
+
 
 
  
+
 
 
 
