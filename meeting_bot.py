@@ -609,7 +609,7 @@ if __name__ == "__main__":
         loop = asyncio.new_event_loop()
         loop.run_until_complete(notify_admin(Bot(token=TOKEN), f"Bot crashed: {e}"))
     except Exception as inner_e:
-        print(f"⚠️ Failed to send crash alert: {inner_e}")
+    print(f"⚠️ Failed to send crash alert: {inner_e}")
 
 
  
