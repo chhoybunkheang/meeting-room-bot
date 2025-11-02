@@ -601,8 +601,20 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+
+    try:
+        main()
+    except Exception as e:
+        print(f"❌ BOT ERROR: {e}")
+        # Notify admin if bot fails to start or crashes
+        try:
+            bot = Bot(token=TOKEN)
+            asyncio.run(notify_admin(bot, f"Bot stopped or crashed.\nError: {e}"))
+        except Exception as inner_e:
+            print(f"⚠️ Failed to send crash alert: {inner_e}")
+
  
+
 
 
 
