@@ -4,6 +4,7 @@ import gspread
 import dateparser
 import asyncio
 import pytz
+import re
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 from telegram import Bot, Update
@@ -156,8 +157,6 @@ async def get_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #==================================================== Get_time()======================================================================
 
 # ✅ When user books — announce to group
-import re
-from datetime import datetime
 
 async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     time_input = update.message.text.strip()
@@ -526,7 +525,7 @@ def main():
     user_commands = [
         BotCommand("start", "Start the bot"),
         BotCommand("book", "Book the room"),
-        BotCommand("sort", "Show sorted booking "),
+        BotCommand("sort", "Show sorted bookings "),
         BotCommand("cancel", "Cancel booking"),
     ]
 
@@ -605,15 +604,16 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"❌ BOT ERROR: {e}")
-        # Notify admin if bot fails to start or crashes
-        try:
-            bot = Bot(token=TOKEN)
-            asyncio.run(notify_admin(bot, f"Bot stopped or crashed.\nError: {e}"))
-        except Exception as inner_e:
-            print(f"⚠️ Failed to send crash alert: {inner_e}")
+    print(f"❌ BOT ERROR: {e}")
+    try:
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(notify_admin(Bot(token=TOKEN), f"Bot crashed: {e}"))
+    except Exception as inner_e:
+        print(f"⚠️ Failed to send crash alert: {inner_e}")
+
 
  
+
 
 
 
