@@ -14,15 +14,26 @@ from telegram.ext import (
     filters, ContextTypes, ConversationHandler, JobQueue
 )
 from telegram.request import HTTPXRequest
-from telegram import BotCommand
+from telegram import BotCommand, ReplyKeyboardMarkup, ReplyKeyboardRemove, InputFile
+
 
 # ===================== CONFIG =====================
 TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1vvBRrL-qXx0jp5-ZRR4xVpOi5ejxE8DtxrHOrel7F78"
-GROUP_CHAT_ID = -1003073406158  
+GROUP_CHAT_ID = -1003073406158
+ADMIN_ID = 171208804  # Replace with my telegram id
 DATE, TIME, CANCEL_SELECT = range(3)
 ANNOUNCE_MESSAGE = range(1)
 
+# States for conversation handlers
+DOC_SELECT = 100
+UPLOAD_DOC = 101
+
+# ✅ Auto-create 'docs' folder if missing
+os.makedirs("docs", exist_ok=True)
+if not os.listdir("docs"):
+    open("docs/.keep", "w").close()
+print("✅ 'docs' folder ready (auto-created if missing).")
 # ===================== GOOGLE SHEETS =====================
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -40,7 +51,97 @@ except gspread.exceptions.WorksheetNotFound:
     stats_sheet = spreadsheet.add_worksheet(title="UserStats", rows="1000", cols="4")
     stats_sheet.append_row(["TelegramID", "Name", "Command", "DateTime"])
 
-# ===================== HELPER FUNCTIONS =====================
+# ===================== HELPER FUNCTIONS ================================================
+# 🧾 Admin Upload Command
+# =========================================================================================
+async def upload_doc_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    if user.id != ADMIN_ID:
+        await update.message.reply_text("🚫 You are not authorized to upload documents.")
+        return ConversationHandler.END
+
+    await update.message.reply_text(
+        "📤 Please send the document file you want to upload (e.g., .docx, .pdf, .xlsx).",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return UPLOAD_DOC
+
+
+async def receive_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    document = update.message.document
+
+    if not document:
+        await update.message.reply_text("⚠️ Please send a valid document file.")
+        return UPLOAD_DOC
+
+    try:
+        os.makedirs("docs", exist_ok=True)
+        file_path = os.path.join("docs", document.file_name)
+        file = await document.get_file()
+        await file.download_to_drive(file_path)
+        await update.message.reply_text(f"✅ File saved: {document.file_name}\nUsers can now access it with /docs.")
+        print(f"✅ Admin uploaded {document.file_name} to docs/")
+    except Exception as e:
+        await update.message.reply_text("⚠️ Failed to save the file.")
+        print(f"⚠️ Error saving file: {e}")
+
+    return ConversationHandler.END
+
+
+# ========================================================================================================
+# 📁 User Download Command
+# =========================================================================================================
+async def docs_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    log_user_action(user, "/docs")
+
+    try:
+        files = [f for f in os.listdir("docs") if f != ".keep"]
+    except Exception:
+        files = []
+
+    if not files:
+        await update.message.reply_text("📂 No documents available yet. Ask the admin to upload some.")
+        return ConversationHandler.END
+
+    # Make buttons (2 per row)
+    keyboard = []
+    row = []
+    for i, f in enumerate(files, 1):
+        row.append(f"📄 {f}")
+        if i % 2 == 0:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text("📁 Please choose a document to download:", reply_markup=reply_markup)
+    return DOC_SELECT
+
+
+async def send_selected_doc(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    choice = update.message.text.strip().replace("📄 ", "")
+    file_path = os.path.join("docs", choice)
+
+    if not os.path.exists(file_path):
+        await update.message.reply_text("⚠️ I couldn’t find that file. Try /docs again.")
+        return ConversationHandler.END
+
+    try:
+        with open(file_path, "rb") as f:
+            await update.message.reply_document(
+                document=InputFile(f, filename=choice),
+                caption=f"📘 Here’s your document: {choice}"
+            )
+        print(f"✅ Sent {choice} to {update.message.from_user.first_name}")
+    except Exception as e:
+        await update.message.reply_text("⚠️ Failed to send the document.")
+        print(f"⚠️ Error sending document: {e}")
+
+    return ConversationHandler.END
+
 #====================== Statistics ==============================
 
 def log_user_action(user, command):
@@ -404,7 +505,6 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Meeting ended but could not announce to group.")
 
 #================================================== Statistics =================================================================
-ADMIN_ID = 171208804  # Replace with your Telegram ID
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show summary of all users' actions."""
@@ -606,12 +706,14 @@ def main():
         BotCommand("sort", "Show sorted bookings "),
         BotCommand("cancel", "Cancel booking"),
         BotCommand ("end", "End the active meeting"),
+        BotCommand("docs", "Download available documents"),
     ]
 
     admin_commands = user_commands + [
         BotCommand("announce", "Send announcement to group"),
         BotCommand("stats", "View all user activity"),
         BotCommand("clean", "Clean up expired bookings"),
+        BotCommand("uploaddoc", "Upload file"),
     ]
 
     # --- Set different menus for user vs admin ---
@@ -658,9 +760,29 @@ def main():
         per_chat=True,
     )
 
+# --- Document Upload Handler (admin only)
+    upload_conv = ConversationHandler(
+    entry_points=[CommandHandler("uploaddoc", upload_doc_start)],
+    states={
+        UPLOAD_DOC: [MessageHandler(filters.Document.ALL, receive_document)],
+    },
+    fallbacks=[],
+    per_user=True,
+    per_chat=True,
+)
 
+# --- Docs Download Handler (for all users)
+docs_conv = ConversationHandler(
+    entry_points=[CommandHandler("docs", docs_menu)],
+    states={
+        DOC_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_selected_doc)],
+    },
+    fallbacks=[],
+    per_user=True,
+    per_chat=True,
+)
 
-    # --- Handlers ---
+# Register the handlers
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("start", start))
     app.add_handler(book_conv)
@@ -669,6 +791,8 @@ def main():
     app.add_handler(CommandHandler("sort", show))
     app.add_handler(announce_conv)
     app.add_handler(CommandHandler("clean", auto_cleanup))
+    app.add_handler(upload_conv)
+    app.add_handler(docs_conv)
 
     # --- Schedule auto cleanup ---
     job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
@@ -698,6 +822,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
