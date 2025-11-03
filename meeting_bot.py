@@ -795,12 +795,12 @@ app.add_handler(upload_conv)
 app.add_handler(docs_conv)
 
     # --- Schedule auto cleanup ---
-    job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
+job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
     print("🕒 Auto-cleanup scheduled every 1 hour.")
     print("✅ Meeting Room Bot is running...")
 
     # ✅ Run the polling (now webhook cleared safely inside loop)
-    app.run_polling()
+app.run_polling()
 
 
 if __name__ == "__main__":
@@ -822,6 +822,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
