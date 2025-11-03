@@ -783,16 +783,16 @@ docs_conv = ConversationHandler(
 )
 
 # Register the handlers
-    app.add_handler(CommandHandler("stats", stats))
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(book_conv)
-    app.add_handler(cancel_conv)
-    app.add_handler(CommandHandler("end",end_meeting))
-    app.add_handler(CommandHandler("sort", show))
-    app.add_handler(announce_conv)
-    app.add_handler(CommandHandler("clean", auto_cleanup))
-    app.add_handler(upload_conv)
-    app.add_handler(docs_conv)
+app.add_handler(CommandHandler("stats", stats))
+app.add_handler(CommandHandler("start", start))
+app.add_handler(book_conv)
+app.add_handler(cancel_conv)
+app.add_handler(CommandHandler("end",end_meeting))
+app.add_handler(CommandHandler("sort", show))
+app.add_handler(announce_conv)
+app.add_handler(CommandHandler("clean", auto_cleanup))
+app.add_handler(upload_conv)
+app.add_handler(docs_conv)
 
     # --- Schedule auto cleanup ---
     job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
@@ -822,6 +822,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
