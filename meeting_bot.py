@@ -330,6 +330,8 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
 #======================================== End the active Meeting ===============================================================
 
 async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    log_user_action(user, "/end")
     """Allow users to end their meeting only if it's within or shortly after the booked time."""
     user = update.message.from_user
     log_user_action(user, "/end")
@@ -696,6 +698,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
