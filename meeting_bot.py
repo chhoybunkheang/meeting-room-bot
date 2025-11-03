@@ -684,6 +684,7 @@ async def notify_admin(bot, message: str):
         print(f"⚠️ Failed to notify admin: {e}")
 
 # ================================================== MAIN ==========================================================================================
+# ================================================== MAIN ==========================================================================================
 def main():
     request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
@@ -703,9 +704,9 @@ def main():
     user_commands = [
         BotCommand("start", "Start the bot"),
         BotCommand("book", "Book the room"),
-        BotCommand("sort", "Show sorted bookings "),
+        BotCommand("sort", "Show sorted bookings"),
         BotCommand("cancel", "Cancel booking"),
-        BotCommand ("end", "End the active meeting"),
+        BotCommand("end", "End the active meeting"),
         BotCommand("docs", "Download available documents"),
     ]
 
@@ -750,63 +751,63 @@ def main():
         per_chat=True,
         per_user=True,
     )
+
     announce_conv = ConversationHandler(
-    entry_points=[CommandHandler("announce", announce)],
-    states={
-        ANNOUNCE_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_announcement)],
+        entry_points=[CommandHandler("announce", announce)],
+        states={
+            ANNOUNCE_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_announcement)],
         },
         fallbacks=[],
         per_user=True,
         per_chat=True,
     )
 
-# --- Document Upload Handler (admin only)
+    # --- Document Upload Handler (admin only)
     upload_conv = ConversationHandler(
-    entry_points=[CommandHandler("uploaddoc", upload_doc_start)],
-    states={
-        UPLOAD_DOC: [MessageHandler(filters.Document.ALL, receive_document)],
-    },
-    fallbacks=[],
-    per_user=True,
-    per_chat=True,
-)
+        entry_points=[CommandHandler("uploaddoc", upload_doc_start)],
+        states={
+            UPLOAD_DOC: [MessageHandler(filters.Document.ALL, receive_document)],
+        },
+        fallbacks=[],
+        per_user=True,
+        per_chat=True,
+    )
 
-# --- Docs Download Handler (for all users)
-docs_conv = ConversationHandler(
-    entry_points=[CommandHandler("docs", docs_menu)],
-    states={
-        DOC_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_selected_doc)],
-    },
-    fallbacks=[],
-    per_user=True,
-    per_chat=True,
-)
+    # --- Docs Download Handler (for all users)
+    docs_conv = ConversationHandler(
+        entry_points=[CommandHandler("docs", docs_menu)],
+        states={
+            DOC_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_selected_doc)],
+        },
+        fallbacks=[],
+        per_user=True,
+        per_chat=True,
+    )
 
-# Register the handlers
-app.add_handler(CommandHandler("stats", stats))
-app.add_handler(CommandHandler("start", start))
-app.add_handler(book_conv)
-app.add_handler(cancel_conv)
-app.add_handler(CommandHandler("end",end_meeting))
-app.add_handler(CommandHandler("sort", show))
-app.add_handler(announce_conv)
-app.add_handler(CommandHandler("clean", auto_cleanup))
-app.add_handler(upload_conv)
-app.add_handler(docs_conv)
+    # --- Register all handlers ---
+    app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(book_conv)
+    app.add_handler(cancel_conv)
+    app.add_handler(CommandHandler("end", end_meeting))
+    app.add_handler(CommandHandler("sort", show))
+    app.add_handler(announce_conv)
+    app.add_handler(CommandHandler("clean", auto_cleanup))
+    app.add_handler(upload_conv)
+    app.add_handler(docs_conv)
 
     # --- Schedule auto cleanup ---
-job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
+    job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
     print("🕒 Auto-cleanup scheduled every 1 hour.")
     print("✅ Meeting Room Bot is running...")
 
     # ✅ Run the polling (now webhook cleared safely inside loop)
-app.run_polling()
+    app.run_polling()
 
 
 if __name__ == "__main__":
     try:
         main()
-
     except Exception as e:
         print(f"❌ BOT ERROR: {e}")
         try:
@@ -821,7 +822,9 @@ if __name__ == "__main__":
 
 
 
+
  
+
 
 
 
