@@ -5,7 +5,7 @@ import dateparser
 import asyncio
 import pytz
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
 from telegram import Bot, Update
 from zoneinfo import ZoneInfo
@@ -112,8 +112,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Commands:\n"
         "/book - Book the meeting room\n"
         "/sort - Show sorted bookings\n"
-        "/available - Check booked times\n"
-        "/cancel - Cancel your booking"
+        "/cancel - Cancel your booking\n"
+        "/end - End the active meeting"
     )
 
 async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -242,6 +242,7 @@ async def show(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(message, parse_mode="Markdown")
 
+
 # ✅ Cancel by number (private only)
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -326,6 +327,81 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
 
     return ConversationHandler.END
 
+#======================================== End the active Meeting ===============================================================
+
+async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Allow users to end their meeting only if it's within or shortly after the booked time."""
+    user = update.message.from_user
+    log_user_action(user, "/end")
+
+    records = sheet.get_all_records()
+    user_bookings = [
+        (i + 2, row) for i, row in enumerate(records)
+        if str(row.get("TelegramID")) == str(user.id)
+    ]
+
+    if not user_bookings:
+        await update.message.reply_text("❌ You don’t have any active meetings to end.")
+        return
+
+    # Get current Phnom Penh time
+    tz = pytz.timezone("Asia/Phnom_Penh")
+    now = datetime.now(tz)
+
+    # Find active or recently ended meeting
+    active_meeting = None
+    active_row_index = None
+
+    for row_index, booking in user_bookings:
+        date_str = booking["Date"]
+        time_str = booking["Time"]
+        start_str, end_str = [t.strip() for t in time_str.split("-")]
+
+        try:
+            start_dt = tz.localize(datetime.strptime(f"{date_str} {start_str}", "%d/%m/%Y %H:%M"))
+            end_dt = tz.localize(datetime.strptime(f"{date_str} {end_str}", "%d/%m/%Y %H:%M"))
+        except Exception as e:
+            print(f"⚠️ Error parsing time: {e}")
+            continue
+
+        # Allow end only during meeting or within 30 mins after
+        if start_dt <= now <= end_dt + timedelta(minutes=30):
+            active_meeting = booking
+            active_row_index = row_index
+            break
+
+    if not active_meeting:
+        await update.message.reply_text(
+            "⏰ It’s not meeting time now or your meeting ended too long ago.\n"
+            "You can only end meetings during or within 30 minutes after the scheduled time."
+        )
+        return
+
+    # --- Valid meeting found: remove it and announce ---
+    sheet.delete_rows(active_row_index)
+    ended_date = active_meeting["Date"]
+    ended_time = active_meeting["Time"]
+
+    message = (
+        f"🏁 *Meeting Ended!*\n"
+        f"👤 {user.first_name}\n"
+        f"📅 {ended_date} | ⏰ {ended_time}\n\n"
+        f"✅ The meeting has officially ended."
+    )
+
+    try:
+        await context.bot.send_message(
+            chat_id=GROUP_CHAT_ID,
+            text=message,
+            parse_mode="Markdown"
+        )
+        await update.message.reply_text("✅ Meeting ended and announced to the group.")
+        print(f"✅ Meeting ended for {user.first_name}: {ended_date} {ended_time}")
+    except Exception as e:
+        print(f"⚠️ Could not send group message: {e}")
+        await update.message.reply_text("⚠️ Meeting ended but could not announce to group.")
+
+#================================================== Statistics =================================================================
 ADMIN_ID = 171208804  # Replace with your Telegram ID
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -527,6 +603,7 @@ def main():
         BotCommand("book", "Book the room"),
         BotCommand("sort", "Show sorted bookings "),
         BotCommand("cancel", "Cancel booking"),
+        BotCommand ("end", "End the active meeting"),
     ]
 
     admin_commands = user_commands + [
@@ -586,6 +663,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(book_conv)
     app.add_handler(cancel_conv)
+    app.add_handler(CommandHandler("end",end_meeting))
     app.add_handler(CommandHandler("sort", show))
     app.add_handler(announce_conv)
     app.add_handler(CommandHandler("clean", auto_cleanup))
@@ -618,6 +696,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
