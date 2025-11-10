@@ -212,9 +212,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👋 Welcome to the Meeting Room Bot!\n\n"
         "Commands:\n"
         "/book - Book the meeting room\n"
-        "/sort - Show sorted bookings\n"
+        "/sort - Sort bookings schedule\n"
         "/cancel - Cancel your booking\n"
-        "/end - End the active meeting"
+        "/end - End the active meeting\n"
+        "/doc - Download available documents"
     )
 
 async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -704,7 +705,7 @@ def main():
     user_commands = [
         BotCommand("start", "Start the bot"),
         BotCommand("book", "Book the room"),
-        BotCommand("sort", "Show sorted bookings"),
+        BotCommand("sort", "Sort booking schedules"),
         BotCommand("cancel", "Cancel booking"),
         BotCommand("end", "End the active meeting"),
         BotCommand("docs", "Download available documents"),
