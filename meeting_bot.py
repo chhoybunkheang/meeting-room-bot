@@ -203,7 +203,7 @@ async def auto_cleanup(update=None, context=None):
         await context.bot.send_message(GROUP_CHAT_ID,msg,parse_mode="Markdown")
         if update: await update.message.reply_text("✅ Cleanup done.")
     elif update: await update.message.reply_text("✨ No expired bookings to clean.")
-        except Exception as e:
+    except Exception as e:
     print(f"⚠️ Cleanup warning: {e}")
     return  # Prevent minor sheet errors from triggering crash
 
@@ -390,6 +390,7 @@ if __name__ == "__main__":
                 print("⚠️ Admin notified successfully.")
             except Exception as inner_e:
                 print(f"⚠️ Failed to alert admin: {inner_e}")
+
 
 
 
