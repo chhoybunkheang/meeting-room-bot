@@ -203,6 +203,10 @@ async def auto_cleanup(update=None, context=None):
         await context.bot.send_message(GROUP_CHAT_ID,msg,parse_mode="Markdown")
         if update: await update.message.reply_text("✅ Cleanup done.")
     elif update: await update.message.reply_text("✨ No expired bookings to clean.")
+        except Exception as e:
+    print(f"⚠️ Cleanup warning: {e}")
+    return  # Prevent minor sheet errors from triggering crash
+
 
 # --- DOCS ---
 async def upload_doc_start(update, context):
@@ -361,21 +365,32 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"❌ BOT ERROR: {e}")
-        try:
-            # ✅ Create a new event loop explicitly (Render-safe)
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+        err_text = str(e)
 
-            bot = Bot(token=TOKEN)
-            loop.run_until_complete(
-                notify_admin(bot, f"⚠️ [Bot Alert]\n\nBot stopped or crashed.\nError: {e}")
-            )
-            loop.close()
-            print("⚠️ Admin notified successfully.")
-        except Exception as inner_e:
-            print(f"⚠️ Failed to alert admin: {inner_e}")
-        # ✅ No 'pass' here — block ends naturally
+        # ✅ Ignore harmless loop-closing messages
+        harmless_errors = [
+            "There is no current event loop",
+            "Event loop is closed",
+            "coroutine was never awaited",
+            "KeyboardInterrupt",
+        ]
+
+        if any(msg in err_text for msg in harmless_errors):
+            print(f"⚠️ Ignored harmless error: {err_text}")
+        else:
+            print(f"❌ BOT ERROR: {err_text}")
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                bot = Bot(token=TOKEN)
+                loop.run_until_complete(
+                    notify_admin(bot, f"⚠️ [Bot Alert]\n\nBot stopped or crashed.\nError: {err_text}")
+                )
+                loop.close()
+                print("⚠️ Admin notified successfully.")
+            except Exception as inner_e:
+                print(f"⚠️ Failed to alert admin: {inner_e}")
+
 
 
 
