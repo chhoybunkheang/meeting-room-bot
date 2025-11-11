@@ -12,6 +12,8 @@ import os, json, re, asyncio, pytz
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import gspread, dateparser
+import warnings
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 from google.oauth2.service_account import Credentials
 from telegram import (
     Bot, Update, BotCommand, InputFile,
@@ -296,10 +298,18 @@ def main():
         BotCommand("uploaddoc", "Upload document"),
     ]
 
-    async def setup(app):
-        await app.bot.set_my_commands(user_cmds, scope={"type": "default"})
-        await app.bot.set_my_commands(admin_cmds, scope={"type": "chat", "chat_id": ADMIN_ID})
-        print("✅ Commands set.")
+   async def setup(app):
+    # Normal users
+    await app.bot.set_my_commands(user_cmds, scope={"type": "default"})
+    
+    # Admin menu = user commands + admin commands (no duplicates)
+    all_admin_cmds = user_cmds + [
+        cmd for cmd in admin_cmds if cmd not in user_cmds
+    ]
+    await app.bot.set_my_commands(all_admin_cmds, scope={"type": "chat", "chat_id": ADMIN_ID})
+    
+    print("✅ Command menus set for users and admin.")
+
 
     app.post_init = setup
 
@@ -353,9 +363,10 @@ if __name__ == "__main__":
                 notify_admin(bot, f"⚠️ [Bot Alert]\n\nBot stopped or crashed.\nError: {e}")
             )
             loop.close()
-            print("⚠️ Admin notified successfully.")
+        pass  # Notification sent silently
         except Exception as inner_e:
             print(f"⚠️ Failed to alert admin: {inner_e}")
+
 
 
 
