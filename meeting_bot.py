@@ -366,9 +366,12 @@ if __name__ == "__main__":
                 notify_admin(bot, f"⚠️ [Bot Alert]\n\nBot stopped or crashed.\nError: {e}")
             )
             loop.close()
-        pass  # Notification sent silently
+            print("⚠️ Admin notified successfully.")
         except Exception as inner_e:
             print(f"⚠️ Failed to alert admin: {inner_e}")
+        # ✅ No 'pass' here — block ends naturally
+
+
 
 
 
