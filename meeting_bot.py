@@ -265,28 +265,23 @@ async def notify_admin(bot,msg):
     except Exception as e: print("⚠️ Notify fail:",e)
 
 # --- MAIN ---
-async def main():
-    # ✅ Clear old webhook (prevent getUpdates conflict)
-    print("🔄 Clearing old webhook...")
-    await clear_webhook(TOKEN)
+def main():
+    # ✅ Clear webhook first to prevent getUpdates conflicts
+    import asyncio
+    asyncio.run(clear_webhook(TOKEN))
 
     request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
-    app = (
-        ApplicationBuilder()
-        .token(TOKEN)
-        .request(request)
-        .build()
-    )
+    app = ApplicationBuilder().token(TOKEN).request(request).build()
 
-    # ✅ Initialize job queue safely
-    jq = getattr(app, "job_queue", None)
-    if jq is None:
-        jq = JobQueue()
-        jq.set_application(app)
-        await jq.start()   # ← FIXED (awaited properly)
+    # ✅ Initialize JobQueue safely
+    job_queue = getattr(app, "job_queue", None)
+    if job_queue is None:
+        job_queue = JobQueue()
+        job_queue.set_application(app)
+        job_queue.start()
         print("✅ Job queue manually initialized.")
 
-    # ✅ Set commands for user and admin
+    # ✅ Commands
     user_cmds = [
         BotCommand("start", "Start bot"),
         BotCommand("book", "Book room"),
@@ -308,7 +303,7 @@ async def main():
 
     app.post_init = setup
 
-    # --- Register handlers ---
+    # Register all handlers (same as before)
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("end", end_meeting))
     app.add_handler(CommandHandler("clean", auto_cleanup))
@@ -317,44 +312,45 @@ async def main():
     app.add_handler(CommandHandler("uploaddoc", upload_doc_start))
     app.add_handler(CommandHandler("docs", docs_menu))
 
-    # Conversation handlers
-    app.add_handler(
-        ConversationHandler(
-            entry_points=[CommandHandler("book", book)],
-            states={
-                DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_date)],
-                TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_time)],
-            },
-            fallbacks=[],
-        )
+    # Conversations
+    book_conv = ConversationHandler(
+        entry_points=[CommandHandler("book", book)],
+        states={
+            DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_date)],
+            TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_time)],
+        },
+        fallbacks=[],
     )
-    app.add_handler(
-        ConversationHandler(
-            entry_points=[CommandHandler("cancel", cancel)],
-            states={
-                CANCEL_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_booking_by_number)],
-            },
-            fallbacks=[],
-        )
+    cancel_conv = ConversationHandler(
+        entry_points=[CommandHandler("cancel", cancel)],
+        states={
+            CANCEL_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_booking_by_number)],
+        },
+        fallbacks=[],
     )
+    app.add_handler(book_conv)
+    app.add_handler(cancel_conv)
 
-    # Schedule cleanup safely
-    jq.run_repeating(auto_cleanup, interval=AUTO_CLEAN_INTERVAL, first=10)
+    job_queue.run_repeating(auto_cleanup, interval=AUTO_CLEAN_INTERVAL, first=10)
     print("✅ Bot running (auto-clean every 1h).")
 
-    # ✅ Poll the bot
-    await app.run_polling(close_loop=False)
+    # ✅ Start polling synchronously
+    app.run_polling()
 
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())  # ← FIXED: now async main is awaited properly
+        main()
     except Exception as e:
         print(f"❌ BOT ERROR: {e}")
         try:
             bot = Bot(token=TOKEN)
-            asyncio.run(notify_admin(bot, f"⚠️ [Bot Alert]\n\nBot stopped or crashed.\nError: {e}"))
+            asyncio.run(
+                notify_admin(bot, f"⚠️ [Bot Alert]\n\nBot stopped or crashed.\nError: {e}")
+            )
         except Exception as inner_e:
             print(f"⚠️ Failed to alert admin: {inner_e}")
+
+
 
 
