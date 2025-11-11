@@ -378,10 +378,11 @@ def main():
         BotCommand("uploaddoc", "Upload document"),
     ]
 
-    async def setup(app):
+       async def setup(app):
+        # Set commands for everyone
         await app.bot.set_my_commands(user_cmds, scope={"type": "default"})
 
-        # Merge user + admin menus
+        # Merge user + admin commands (remove duplicates)
         all_admin_cmds = []
         seen = set()
         for cmd in user_cmds + admin_cmds:
@@ -389,10 +390,18 @@ def main():
                 all_admin_cmds.append(cmd)
                 seen.add(cmd.command)
 
+        # ✅ Apply merged commands for the admin (private chat or any group)
         await app.bot.set_my_commands(
-            all_admin_cmds, scope={"type": "chat", "chat_id": ADMIN_ID}
+            all_admin_cmds,
+            scope={
+                "type": "chat_member",
+                "chat_id": ADMIN_ID,
+                "user_id": ADMIN_ID,
+            },
         )
+
         print("✅ Command menus set for users and admin.")
+
 
     app.post_init = setup
 
@@ -453,3 +462,4 @@ if __name__ == "__main__":
                 print("⚠️ Admin notified successfully.")
             except Exception as inner_e:
                 print(f"⚠️ Failed to alert admin: {inner_e}")
+
