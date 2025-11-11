@@ -610,8 +610,10 @@ async def send_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
  # ===================== AUTO CLEANUP OLD BOOKINGS ==================================================================
     
-async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
-    """Automatically remove expired meetings, rebuild the sheet safely, and announce updates."""
+async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE = None):
+    """Automatically remove expired meetings and notify results.
+    Works for both scheduled job and manual /clean command.
+    """
     now = datetime.now(pytz.timezone("Asia/Phnom_Penh"))
     records = sheet.get_all_records()
 
@@ -630,7 +632,6 @@ async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
             meeting_end = datetime.strptime(f"{date_str} {end_time_str.strip()}", "%d/%m/%Y %H:%M")
             meeting_end = pytz.timezone("Asia/Phnom_Penh").localize(meeting_end)
 
-            # Compare to current time
             if meeting_end < now:
                 removed.append(f"{date_str} | {time_str} | {name}")
             else:
@@ -638,52 +639,58 @@ async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             print(f"⚠️ Error parsing record: {e}")
 
-    # --- If expired meetings found, rebuild the sheet ---
+    # --- If expired meetings found ---
     if removed:
         try:
             headers = ["Date", "Time", "Name", "TelegramID"]
             sheet.clear()
 
-            # Prepare new data: headers + valid rows
             new_data = [headers]
             for r in updated_records:
-                date_val = r.get("Date", "")
-                time_val = r.get("Time", "")
-                name_val = r.get("Name", "")
-                id_val = r.get("TelegramID", "")
-                new_data.append([date_val, time_val, name_val, id_val])
+                new_data.append([
+                    r.get("Date", ""),
+                    r.get("Time", ""),
+                    r.get("Name", ""),
+                    r.get("TelegramID", "")
+                ])
 
-            # ✅ Write all at once (faster and cleaner)
             sheet.update("A1", new_data)
             print("✅ Sheet successfully rewritten with updated records.")
 
-            # --- Announce in group ---
-            message = "🕒 *Expired Meeting(s) Removed:*\n"
+            # --- Build message ---
+            message = "🧹 *Expired Meetings Removed:*\n"
             for r in removed:
-                message += f"🧹 {r}\n"
+                message += f"• {r}\n"
 
             if updated_records:
                 message += "\n📋 *Updated Schedule:*\n"
                 for row in updated_records:
                     message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
             else:
-                message += "\n✅ No meetings left in the schedule."
+                message += "\n✅ No meetings left."
 
-            await context.bot.send_message(
-                chat_id=GROUP_CHAT_ID,
-                text=message,
-                parse_mode="Markdown"
-            )
+            # --- Send message (group + user if manual) ---
+            await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode="Markdown")
+
+            # Reply to user if command was manual
+            if update and update.message:
+                await update.message.reply_text("✅ Cleanup completed and group updated!")
 
         except Exception as e:
             print(f"⚠️ Error rewriting sheet: {e}")
-            await context.bot.send_message(
-                chat_id=GROUP_CHAT_ID,
-                text="⚠️ Cleanup failed due to a sheet update error.",
-                parse_mode="Markdown"
-            )
+            if update and update.message:
+                await update.message.reply_text("⚠️ Cleanup failed due to a sheet update error.")
+            else:
+                await context.bot.send_message(
+                    chat_id=GROUP_CHAT_ID,
+                    text="⚠️ Cleanup failed due to a sheet update error.",
+                    parse_mode="Markdown"
+                )
     else:
         print("✅ No expired meetings found during cleanup.")
+        # ✅ Notify user if manual command
+        if update and update.message:
+            await update.message.reply_text("✨ There are no expired bookings to clean up.")
         
 # ================= CLEAR WEBHOOK =============================================================================================================
 async def clear_webhook(bot_token):
@@ -843,6 +850,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
