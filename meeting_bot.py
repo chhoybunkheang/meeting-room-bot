@@ -508,13 +508,7 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #================================================== Statistics =================================================================
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show summary of all users' actions."""
-
-    # ✅ Only allow admin
-    if update.message.from_user.id != ADMIN_ID:
-        await update.message.reply_text("🚫 You are not authorized to use this command.")
-        return
-
+    """Show summary of all users' actions sorted by most recent activity."""
     try:
         spreadsheet = client.open_by_url(SPREADSHEET_URL)
         stats_sheet = spreadsheet.worksheet("UserStats")
@@ -524,31 +518,55 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("📊 No user activity data yet.")
             return
 
-        # --- Group by user ---
+        # Group and summarize
         summary = {}
+
         for row in records:
             name = row["Name"]
             action = row["Command"]
-            summary.setdefault(name, {"total": 0, "actions": {}})
-            summary[name]["total"] += 1
-            summary[name]["actions"][action] = summary[name]["actions"].get(action, 0) + 1
-            summary[name]["last_action"] = row["DateTime"]
+            last_time = row["DateTime"]
 
-        # --- Build reply message ---
+            if name not in summary:
+                summary[name] = {
+                    "total": 0,
+                    "actions": {},
+                    "last_action": last_time
+                }
+
+            summary[name]["total"] += 1
+            summary[name]["last_action"] = last_time
+            summary[name]["actions"][action] = summary[name]["actions"].get(action, 0) + 1
+
+        # ✅ Sort users by newest last_action first
+        def sort_key(item):
+            try:
+                return datetime.strptime(item[1]["last_action"], "%d/%m/%Y %H:%M:%S")
+            except:
+                return datetime.min
+
+        sorted_users = sorted(summary.items(), key=sort_key, reverse=True)
+
+        # Build compact message
         message = "📊 *All User Activity Summary:*\n\n"
-        for name, info in summary.items():
-            message += f"👤 *{name}*\n"
-            message += f"🕒 Last Action: {info['last_action']}\n"
-            message += f"📈 Total Actions: {info['total']}\n"
-            for cmd, count in info["actions"].items():
-                message += f"   • {cmd}: {count}\n"
-            message += "\n"
+
+        for name, info in sorted_users:
+            actions_text = ", ".join(
+                [f"{cmd}({count})" for cmd, count in info["actions"].items()]
+            )
+
+            message += (
+                f"👤 *{name}*\n"
+                f"🕒 Last: {info['last_action']}\n"
+                f"📈 Total: {info['total']}\n"
+                f"📝 Actions: {actions_text}\n\n"
+            )
 
         await update.message.reply_text(message, parse_mode="Markdown")
 
     except Exception as e:
         print(f"⚠️ Error generating stats: {e}")
         await update.message.reply_text("⚠️ Could not retrieve stats.")
+
         
 #==================================== announcement===========================================================================================
 async def announce(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -640,7 +658,7 @@ async def auto_cleanup(context: ContextTypes.DEFAULT_TYPE):
             print("✅ Sheet successfully rewritten with updated records.")
 
             # --- Announce in group ---
-            message = "🕒 *Expired Meetings Removed:*\n"
+            message = "🕒 *Expired Meeting(s) Removed:*\n"
             for r in removed:
                 message += f"🧹 {r}\n"
 
@@ -825,6 +843,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
