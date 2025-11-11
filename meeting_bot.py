@@ -378,7 +378,7 @@ def main():
         BotCommand("uploaddoc", "Upload document"),
     ]
 
-       async def setup(app):
+    async def setup(app):
         # Set commands for everyone
         await app.bot.set_my_commands(user_cmds, scope={"type": "default"})
 
@@ -462,4 +462,5 @@ if __name__ == "__main__":
                 print("⚠️ Admin notified successfully.")
             except Exception as inner_e:
                 print(f"⚠️ Failed to alert admin: {inner_e}")
+
 
