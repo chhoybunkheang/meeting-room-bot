@@ -265,67 +265,96 @@ async def notify_admin(bot,msg):
     except Exception as e: print("⚠️ Notify fail:",e)
 
 # --- MAIN ---
-def main():
-    # ✅ Clear old webhook to prevent 'Conflict: getUpdates' errors
-    print("🔄 Clearing old webhook..."); asyncio.run(clear_webhook(TOKEN))
-    request=HTTPXRequest(connect_timeout=15,read_timeout=30)
-    app=ApplicationBuilder().token(TOKEN).request(request).build()
-    jq=getattr(app,"job_queue",None) or JobQueue(); jq.set_application(app); jq.start()
+async def main():
+    # ✅ Clear old webhook (prevent getUpdates conflict)
+    print("🔄 Clearing old webhook...")
+    await clear_webhook(TOKEN)
 
-    # Commands
-    user_cmds=[
-        BotCommand("start","Start bot"), BotCommand("book","Book room"),
-        BotCommand("cancel","Cancel booking"), BotCommand("end","End meeting"),
-        BotCommand("docs","Download documents")
+    request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
+    app = (
+        ApplicationBuilder()
+        .token(TOKEN)
+        .request(request)
+        .build()
+    )
+
+    # ✅ Initialize job queue safely
+    jq = getattr(app, "job_queue", None)
+    if jq is None:
+        jq = JobQueue()
+        jq.set_application(app)
+        await jq.start()   # ← FIXED (awaited properly)
+        print("✅ Job queue manually initialized.")
+
+    # ✅ Set commands for user and admin
+    user_cmds = [
+        BotCommand("start", "Start bot"),
+        BotCommand("book", "Book room"),
+        BotCommand("cancel", "Cancel booking"),
+        BotCommand("end", "End meeting"),
+        BotCommand("docs", "Download documents"),
     ]
-    admin_cmds=user_cmds+[
-        BotCommand("announce","Send announcement"),
-        BotCommand("stats","View user stats"),
-        BotCommand("clean","Clean expired"),
-        BotCommand("uploaddoc","Upload document")
+    admin_cmds = user_cmds + [
+        BotCommand("announce", "Send announcement"),
+        BotCommand("stats", "View user stats"),
+        BotCommand("clean", "Clean expired"),
+        BotCommand("uploaddoc", "Upload document"),
     ]
 
     async def setup(app):
-        await app.bot.set_my_commands(user_cmds,scope={"type":"default"})
-        await app.bot.set_my_commands(admin_cmds,scope={"type":"chat","chat_id":ADMIN_ID})
+        await app.bot.set_my_commands(user_cmds, scope={"type": "default"})
+        await app.bot.set_my_commands(admin_cmds, scope={"type": "chat", "chat_id": ADMIN_ID})
         print("✅ Commands set.")
 
-    app.post_init=setup
+    app.post_init = setup
 
-    # Conversations
-    book_conv=ConversationHandler(entry_points=[CommandHandler("book",book)],
-        states={DATE:[MessageHandler(filters.TEXT & ~filters.COMMAND,get_date)],
-                TIME:[MessageHandler(filters.TEXT & ~filters.COMMAND,get_time)]}, fallbacks=[])
-    cancel_conv=ConversationHandler(entry_points=[CommandHandler("cancel",cancel)],
-        states={CANCEL_SELECT:[MessageHandler(filters.TEXT & ~filters.COMMAND,delete_booking_by_number)]}, fallbacks=[])
-    announce_conv=ConversationHandler(entry_points=[CommandHandler("announce",announce)],
-        states={ANNOUNCE_MESSAGE:[MessageHandler(filters.TEXT & ~filters.COMMAND,send_announcement)]}, fallbacks=[])
-    upload_conv=ConversationHandler(entry_points=[CommandHandler("uploaddoc",upload_doc_start)],
-        states={UPLOAD_DOC:[MessageHandler(filters.Document.ALL,receive_document)]}, fallbacks=[])
-    docs_conv=ConversationHandler(entry_points=[CommandHandler("docs",docs_menu)],
-        states={DOC_SELECT:[MessageHandler(filters.TEXT & ~filters.COMMAND,send_selected_doc)]}, fallbacks=[])
+    # --- Register handlers ---
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("end", end_meeting))
+    app.add_handler(CommandHandler("clean", auto_cleanup))
+    app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("announce", announce))
+    app.add_handler(CommandHandler("uploaddoc", upload_doc_start))
+    app.add_handler(CommandHandler("docs", docs_menu))
 
-    # Register handlers
-    app.add_handler(CommandHandler("start",start))
-    app.add_handler(book_conv); app.add_handler(cancel_conv)
-    app.add_handler(CommandHandler("end",end_meeting))
-    app.add_handler(CommandHandler("clean",auto_cleanup))
-    app.add_handler(announce_conv); app.add_handler(CommandHandler("stats",stats))
-    app.add_handler(upload_conv); app.add_handler(docs_conv)
+    # Conversation handlers
+    app.add_handler(
+        ConversationHandler(
+            entry_points=[CommandHandler("book", book)],
+            states={
+                DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_date)],
+                TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_time)],
+            },
+            fallbacks=[],
+        )
+    )
+    app.add_handler(
+        ConversationHandler(
+            entry_points=[CommandHandler("cancel", cancel)],
+            states={
+                CANCEL_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_booking_by_number)],
+            },
+            fallbacks=[],
+        )
+    )
 
-    jq.run_repeating(auto_cleanup,interval=AUTO_CLEAN_INTERVAL,first=10)
+    # Schedule cleanup safely
+    jq.run_repeating(auto_cleanup, interval=AUTO_CLEAN_INTERVAL, first=10)
     print("✅ Bot running (auto-clean every 1h).")
-    app.run_polling()
 
-# --- ENTRY ---
-if __name__=="__main__":
+    # ✅ Poll the bot
+    await app.run_polling(close_loop=False)
+
+
+if __name__ == "__main__":
     try:
-        main()
+        asyncio.run(main())  # ← FIXED: now async main is awaited properly
     except Exception as e:
         print(f"❌ BOT ERROR: {e}")
         try:
-            loop=asyncio.new_event_loop(); asyncio.set_event_loop(loop)
-            bot=Bot(token=TOKEN)
-            loop.run_until_complete(notify_admin(bot,f"Bot stopped or crashed.\nError: {e}"))
-        except Exception as inner:
-            print(f"⚠️ Failed to alert admin: {inner}")
+            bot = Bot(token=TOKEN)
+            asyncio.run(notify_admin(bot, f"⚠️ [Bot Alert]\n\nBot stopped or crashed.\nError: {e}"))
+        except Exception as inner_e:
+            print(f"⚠️ Failed to alert admin: {inner_e}")
+
+
