@@ -344,12 +344,19 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ BOT ERROR: {e}")
         try:
+            # ✅ Create a new event loop explicitly (Render-safe)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
             bot = Bot(token=TOKEN)
-            asyncio.run(
+            loop.run_until_complete(
                 notify_admin(bot, f"⚠️ [Bot Alert]\n\nBot stopped or crashed.\nError: {e}")
             )
+            loop.close()
+            print("⚠️ Admin notified successfully.")
         except Exception as inner_e:
             print(f"⚠️ Failed to alert admin: {inner_e}")
+
 
 
 
