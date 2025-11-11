@@ -298,20 +298,26 @@ def main():
         BotCommand("uploaddoc", "Upload document"),
     ]
 
-    async def setup(app):
-        # Normal users
+        async def setup(app):
+        # ✅ Set user commands (for everyone)
         await app.bot.set_my_commands(user_cmds, scope={"type": "default"})
 
-        # Admin menu = user commands + admin commands (no duplicates)
-        all_admin_cmds = user_cmds + [
-            cmd for cmd in admin_cmds if cmd not in user_cmds
-        ]
+        # ✅ Merge user + admin commands, avoiding duplicates
+        all_admin_cmds = []
+        seen = set()
+        for cmd in user_cmds + admin_cmds:
+            if cmd.command not in seen:
+                all_admin_cmds.append(cmd)
+                seen.add(cmd.command)
+
+        # ✅ Apply merged menu for the admin user
         await app.bot.set_my_commands(
             all_admin_cmds,
             scope={"type": "chat", "chat_id": ADMIN_ID}
         )
 
         print("✅ Command menus set for users and admin.")
+
 
 
     app.post_init = setup
@@ -370,6 +376,7 @@ if __name__ == "__main__":
         except Exception as inner_e:
             print(f"⚠️ Failed to alert admin: {inner_e}")
         # ✅ No 'pass' here — block ends naturally
+
 
 
 
