@@ -298,23 +298,38 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif result == "success":
         await update.message.reply_text(f"✅ Booking confirmed for {date_str} at {time_input}.")
 
-        # Announce to group
+        # Announce to group with sorted schedule
         try:
             records = sheet.get_all_records()
+
+            # ✅ Sort by date + time (old → new)
+            def sort_key(row):
+                try:
+                    date_obj = datetime.strptime(row["Date"], "%d/%m/%Y")
+                    time_start = row["Time"].split("-")[0] if "-" in row["Time"] else row["Time"]
+                    time_obj = datetime.strptime(time_start, "%H:%M")
+                    return (date_obj, time_obj)
+                except Exception:
+                    return (datetime.max, datetime.max)
+
+            records.sort(key=sort_key)
+
+            # ✅ Build clean message
             message = (
                 f"📢 *New Booking Added!*\n\n"
                 f"👤 {user.first_name}\n"
                 f"🗓 {date_str} | ⏰ {time_input}\n\n"
-                f"📋 *Current Schedule:*\n"
+                f"📋 *Current Schedule (old → new):*\n"
             )
+
             for row in records:
                 message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
 
             await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode="Markdown")
+            print("✅ Group message with sorted schedule sent.")
         except Exception as e:
             print(f"⚠️ Could not send group message: {e}")
 
-    return ConversationHandler.END
 
 async def show(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -859,6 +874,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
