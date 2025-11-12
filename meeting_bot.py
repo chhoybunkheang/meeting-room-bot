@@ -611,10 +611,18 @@ async def send_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
  # ===================== AUTO CLEANUP OLD BOOKINGS ==================================================================
     
 async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE = None):
-    """Automatically remove expired meetings and notify results.
-    Works for both scheduled job and manual /clean command.
     """
-    now = datetime.now(pytz.timezone("Asia/Phnom_Penh"))
+    Works both when called manually (update + context) and when called by JobQueue
+    (first arg will be the context object).
+    """
+    # --- Normalize args: if called by JobQueue the first positional arg will be context ---
+    if context is None and update is not None and not hasattr(update, "message"):
+        # update is actually the CallbackContext; shift variables
+        context = update
+        update = None
+
+    tz = pytz.timezone("Asia/Phnom_Penh")
+    now = datetime.now(tz)
     records = sheet.get_all_records()
 
     removed = []
@@ -630,7 +638,7 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
             # Parse meeting end time
             start_time_str, end_time_str = time_str.split("-")
             meeting_end = datetime.strptime(f"{date_str} {end_time_str.strip()}", "%d/%m/%Y %H:%M")
-            meeting_end = pytz.timezone("Asia/Phnom_Penh").localize(meeting_end)
+            meeting_end = tz.localize(meeting_end)
 
             if meeting_end < now:
                 removed.append(f"{date_str} | {time_str} | {name}")
@@ -669,18 +677,19 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
             else:
                 message += "\n✅ No meetings left."
 
-            # --- Send message (group + user if manual) ---
-            await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode="Markdown")
+            # --- Send message to group (requires context) ---
+            if context:
+                await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode="Markdown")
 
             # Reply to user if command was manual
-            if update and update.message:
+            if update and getattr(update, "message", None):
                 await update.message.reply_text("✅ Cleanup completed and group updated!")
 
         except Exception as e:
             print(f"⚠️ Error rewriting sheet: {e}")
-            if update and update.message:
+            if update and getattr(update, "message", None):
                 await update.message.reply_text("⚠️ Cleanup failed due to a sheet update error.")
-            else:
+            elif context:
                 await context.bot.send_message(
                     chat_id=GROUP_CHAT_ID,
                     text="⚠️ Cleanup failed due to a sheet update error.",
@@ -689,7 +698,7 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
     else:
         print("✅ No expired meetings found during cleanup.")
         # ✅ Notify user if manual command
-        if update and update.message:
+        if update and getattr(update, "message", None):
             await update.message.reply_text("✨ There are no expired bookings to clean up.")
         
 # ================= CLEAR WEBHOOK =============================================================================================================
@@ -850,6 +859,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
