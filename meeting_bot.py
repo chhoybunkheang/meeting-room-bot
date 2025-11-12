@@ -319,7 +319,7 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📢 *New Booking Added!*\n\n"
                 f"👤 {user.first_name}\n"
                 f"🗓 {date_str} | ⏰ {time_input}\n\n"
-                f"📋 *Current Schedule (old → new):*\n"
+                f"📋 *Current Schedule:*\n"
             )
 
             for row in records:
@@ -431,7 +431,7 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
 
         records.sort(key=sort_key)
 
-        message = "📋 *Updated Schedule (old → new):*\n"
+        message = "📋 *Updated Schedule:*\n"
         for row in records:
             message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
     else:
@@ -699,6 +699,18 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
                 message += f"• {r}\n"
 
             if updated_records:
+                # ✅ Sort by date + time (old → new)
+                def sort_key(row):
+                    try:
+                        date_obj = datetime.strptime(row["Date"], "%d/%m/%Y")
+                        time_start = row["Time"].split("-")[0] if "-" in row["Time"] else row["Time"]
+                        time_obj = datetime.strptime(time_start, "%H:%M")
+                        return (date_obj, time_obj)
+                    except Exception:
+                        return (datetime.max, datetime.max)
+
+                updated_records.sort(key=sort_key)
+
                 message += "\n📋 *Updated Schedule:*\n"
                 for row in updated_records:
                     message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
@@ -887,6 +899,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
