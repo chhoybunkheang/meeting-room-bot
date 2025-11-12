@@ -721,7 +721,7 @@ async def notify_admin(bot, message: str):
 # ================================================== MAIN ==========================================================================================
 # ================================================== MAIN ==========================================================================================
 def main():
-    request = HTTPXRequest(connect_timeout=15.0, read_timeout=30.0)
+    request = HTTPXRequest(connect_timeout=30.0, read_timeout=120.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
 
     # ✅ Initialize job queue safely
@@ -737,18 +737,18 @@ def main():
 
     # --- Define commands for user and admin ---
     user_commands = [
-        BotCommand("start", "Start the bot"),
-        BotCommand("book", "Book the room"),
-        BotCommand("sort", "Sort booking schedules"),
+        BotCommand("start", "Start"),
+        BotCommand("book", "Book room"),
+        BotCommand("sort", "Sort bookings"),
         BotCommand("cancel", "Cancel booking"),
-        BotCommand("end", "End the active meeting"),
-        BotCommand("docs", "Download available documents"),
+        BotCommand("end", "End the meeting"),
+        BotCommand("docs", "Download documents"),
     ]
 
     admin_commands = user_commands + [
-        BotCommand("announce", "Send announcement to group"),
-        BotCommand("stats", "View all user activity"),
-        BotCommand("clean", "Clean up expired bookings"),
+        BotCommand("announce", "Announcement"),
+        BotCommand("stats", "Statistics"),
+        BotCommand("clean", "Clean up expired"),
         BotCommand("uploaddoc", "Upload file"),
     ]
 
@@ -859,6 +859,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
