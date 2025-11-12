@@ -419,11 +419,24 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
     records = sheet.get_all_records()
 
     if records:
-        message = "📋 *Updated Schedule:*\n"
+        # ✅ Sort by date + time (old → new)
+        def sort_key(row):
+            try:
+                date_obj = datetime.strptime(row["Date"], "%d/%m/%Y")
+                time_start = row["Time"].split("-")[0] if "-" in row["Time"] else row["Time"]
+                time_obj = datetime.strptime(time_start, "%H:%M")
+                return (date_obj, time_obj)
+            except Exception:
+                return (datetime.max, datetime.max)
+
+        records.sort(key=sort_key)
+
+        message = "📋 *Updated Schedule (old → new):*\n"
         for row in records:
             message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
     else:
         message = "📋 No bookings left."
+
 
     # Create group announcement
     announcement = (
@@ -874,6 +887,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
