@@ -212,7 +212,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👋 Welcome to the Meeting Room Bot!\n\n"
         "Commands:\n"
         "/book - Book the meeting room\n"
-        "/sort - Sort bookings schedule\n"
         "/cancel - Cancel your booking\n"
         "/end - End the active meeting\n"
         "/doc - Download available documents"
@@ -329,35 +328,6 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print("✅ Group message with sorted schedule sent.")
         except Exception as e:
             print(f"⚠️ Could not send group message: {e}")
-
-
-async def show(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    log_user_action(user, "/sort")
-    records = sheet.get_all_records()
-
-    if not records:
-        await update.message.reply_text("📋 No bookings yet.")
-        return
-
-    # Sort by date + time
-    def sort_key(row):
-        try:
-            date_obj = datetime.strptime(row["Date"], "%d/%m/%Y")
-            time_start = row["Time"].split("-")[0] if "-" in row["Time"] else row["Time"]
-            time_obj = datetime.strptime(time_start, "%H:%M")
-            return (date_obj, time_obj)
-        except Exception:
-            return (datetime.max, datetime.max)
-
-    records.sort(key=sort_key)
-
-    # Build schedule message
-    message = "📋 *Current Schedule (old → new):*\n\n"
-    for row in records:
-        message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
-
-    await update.message.reply_text(message, parse_mode="Markdown")
 
 
 # ✅ Cancel by number (private only)
@@ -779,7 +749,6 @@ def main():
     user_commands = [
         BotCommand("start", "Start"),
         BotCommand("book", "Book room"),
-        BotCommand("sort", "Sort bookings"),
         BotCommand("cancel", "Cancel booking"),
         BotCommand("end", "End the meeting"),
         BotCommand("docs", "Download documents"),
@@ -865,7 +834,6 @@ def main():
     app.add_handler(book_conv)
     app.add_handler(cancel_conv)
     app.add_handler(CommandHandler("end", end_meeting))
-    app.add_handler(CommandHandler("sort", show))
     app.add_handler(announce_conv)
     app.add_handler(CommandHandler("clean", auto_cleanup))
     app.add_handler(upload_conv)
@@ -899,6 +867,7 @@ if __name__ == "__main__":
 
 
  
+
 
 
 
