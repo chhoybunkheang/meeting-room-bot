@@ -7,33 +7,36 @@ import pytz
 import re
 from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
-from telegram import Bot, Update
+from telegram import Bot, Update, BotCommand, InputFile
+from telegram import BotCommandScopeDefault, BotCommandScopeChat
 from zoneinfo import ZoneInfo
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     filters, ContextTypes, ConversationHandler, JobQueue
 )
 from telegram.request import HTTPXRequest
-from telegram import BotCommand, ReplyKeyboardMarkup, ReplyKeyboardRemove, InputFile
-
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
 
 # ===================== CONFIG =====================
 TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1vvBRrL-qXx0jp5-ZRR4xVpOi5ejxE8DtxrHOrel7F78"
 GROUP_CHAT_ID = -1003073406158
-ADMIN_ID = 171208804  # Replace with my telegram id
-DATE, TIME, CANCEL_SELECT = range(3)
-ANNOUNCE_MESSAGE = range(1)
+ADMIN_ID = 171208804  # Replace with your telegram id
 
-# States for conversation handlers
+# Conversation states
+DATE, TIME, CANCEL_SELECT = range(3)
+ANNOUNCE_MESSAGE = 200
+
+# States for docs upload/download
 DOC_SELECT = 100
 UPLOAD_DOC = 101
 
-# ✅ Auto-create 'docs' folder if missing
+# Ensure docs folder exists
 os.makedirs("docs", exist_ok=True)
 if not os.listdir("docs"):
     open("docs/.keep", "w").close()
 print("✅ 'docs' folder ready (auto-created if missing).")
+
 # ===================== GOOGLE SHEETS =====================
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -51,98 +54,17 @@ except gspread.exceptions.WorksheetNotFound:
     stats_sheet = spreadsheet.add_worksheet(title="UserStats", rows="1000", cols="4")
     stats_sheet.append_row(["TelegramID", "Name", "Command", "DateTime"])
 
-# ===================== HELPER FUNCTIONS ================================================
-# 🧾 Admin Upload Command
-# =========================================================================================
-async def upload_doc_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    if user.id != ADMIN_ID:
-        await update.message.reply_text("🚫 You are not authorized to upload documents.")
-        return ConversationHandler.END
+# ===================== HELPERS =====================
 
-    await update.message.reply_text(
-        "📤 Please send the document file you want to upload (e.g., .docx, .pdf, .xlsx).",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return UPLOAD_DOC
-
-
-async def receive_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    document = update.message.document
-
-    if not document:
-        await update.message.reply_text("⚠️ Please send a valid document file.")
-        return UPLOAD_DOC
-
+def sort_key(row):
+    """Reusable sort key: parse Date and start Time; fallback to max values."""
     try:
-        os.makedirs("docs", exist_ok=True)
-        file_path = os.path.join("docs", document.file_name)
-        file = await document.get_file()
-        await file.download_to_drive(file_path)
-        await update.message.reply_text(f"✅ File saved: {document.file_name}\nUsers can now access it with /docs.")
-        print(f"✅ Admin uploaded {document.file_name} to docs/")
-    except Exception as e:
-        await update.message.reply_text("⚠️ Failed to save the file.")
-        print(f"⚠️ Error saving file: {e}")
-
-    return ConversationHandler.END
-
-
-# ========================================================================================================
-# 📁 User Download Command
-# =========================================================================================================
-async def docs_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    log_user_action(user, "/docs")
-
-    try:
-        files = [f for f in os.listdir("docs") if f != ".keep"]
+        date_obj = datetime.strptime(row["Date"], "%d/%m/%Y")
+        time_start = row["Time"].split("-")[0] if "-" in row["Time"] else row["Time"]
+        time_obj = datetime.strptime(time_start.strip(), "%H:%M")
+        return (date_obj, time_obj)
     except Exception:
-        files = []
-
-    if not files:
-        await update.message.reply_text("📂 No documents available yet. Ask the admin to upload some.")
-        return ConversationHandler.END
-
-    # Make buttons (2 per row)
-    keyboard = []
-    row = []
-    for i, f in enumerate(files, 1):
-        row.append(f"📄 {f}")
-        if i % 2 == 0:
-            keyboard.append(row)
-            row = []
-    if row:
-        keyboard.append(row)
-
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text("📁 Please choose a document to download:", reply_markup=reply_markup)
-    return DOC_SELECT
-
-
-async def send_selected_doc(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    choice = update.message.text.strip().replace("📄 ", "")
-    file_path = os.path.join("docs", choice)
-
-    if not os.path.exists(file_path):
-        await update.message.reply_text("⚠️ I couldn’t find that file. Try /docs again.")
-        return ConversationHandler.END
-
-    try:
-        with open(file_path, "rb") as f:
-            await update.message.reply_document(
-                document=InputFile(f, filename=choice),
-                caption=f"📘 Here’s your document: {choice}"
-            )
-        print(f"✅ Sent {choice} to {update.message.from_user.first_name}")
-    except Exception as e:
-        await update.message.reply_text("⚠️ Failed to send the document.")
-        print(f"⚠️ Error sending document: {e}")
-
-    return ConversationHandler.END
-
-#====================== Statistics ==============================
+        return (datetime.max, datetime.max)
 
 def log_user_action(user, command):
     """Log each user command to the 'UserStats' sheet (Phnom Penh time)."""
@@ -159,11 +81,9 @@ def time_to_minutes(time_str):
     h, m = map(int, time_str.split(":"))
     return h * 60 + m
 
-
 def is_overlapping(existing_start, existing_end, new_start, new_end):
     """Check if two time ranges overlap."""
     return not (new_end <= existing_start or new_start >= existing_end)
-
 
 def save_booking(date_str, time_str, name, telegram_id):
     """Save a booking only if the time range does not overlap with existing ones."""
@@ -205,6 +125,7 @@ def cancel_booking(telegram_id, date_str, time_str):
     return False
 
 # ===================== BOT COMMANDS =====================
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/start")
@@ -214,7 +135,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/book - Book the meeting room\n"
         "/cancel - Cancel your booking\n"
         "/end - End the active meeting\n"
-        "/doc - Download available documents"
+        "/docs - Download available documents"
     )
 
 async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -223,12 +144,11 @@ async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📅 Please enter the date (e.g. 30/10/2025 or 30/10):")
     return DATE
 
-#============================================== Get Date ()===========================================================
-
+# ----------------- Get Date -----------------
 async def get_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     date_input = update.message.text.strip()
 
-    # ✅ Validate format using regex before parsing
+    # Validate format using regex before parsing
     if not re.match(r"^\d{1,2}/\d{1,2}(/?\d{2,4})?$", date_input):
         await update.message.reply_text("❌ Please enter date in format DD/MM or DD/MM/YYYY.")
         return DATE
@@ -237,39 +157,31 @@ async def get_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(date_input.split("/")) == 2:
         date_input = f"{date_input}/{datetime.now().year}"
 
-    # Parse with DMY order to ensure correct format
+    # Parse with DMY order
     date_obj = dateparser.parse(date_input, settings={"DATE_ORDER": "DMY"})
-
     if not date_obj:
         await update.message.reply_text("❌ Invalid date. Try again (example: 25/10 or 25/10/2025).")
         return DATE
 
-    # Check if date is in the past
+    # Check if date is in the past (compare dates)
     if date_obj.date() < datetime.now().date():
         await update.message.reply_text("⚠️ The date you entered is in the past. Please choose a future date.")
         return DATE
 
-    # Save valid date
     context.user_data["date"] = date_obj.strftime("%d/%m/%Y")
     await update.message.reply_text("⏰ Great! Now enter the time range (e.g. 14:00-15:00):")
     return TIME
 
-
-#==================================================== Get_time()======================================================================
-
-# ✅ When user books — announce to group
-
+# ----------------- Get Time & Save -----------------
 async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     time_input = update.message.text.strip()
     user = update.message.from_user
     date_str = context.user_data.get("date")
 
-    # ✅ Validate time format (HH:MM-HH:MM)
     if not re.match(r"^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}$", time_input):
         await update.message.reply_text("❌ Invalid time format. Use HH:MM-HH:MM (e.g. 09:00-10:30).")
         return TIME
 
-    # Parse and validate time range
     start_str, end_str = [t.strip() for t in time_input.split("-")]
     try:
         start_time = datetime.strptime(start_str, "%H:%M")
@@ -278,42 +190,26 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Invalid time values. Please check your input again.")
         return TIME
 
-    # Check logical order (start < end)
     if end_time <= start_time:
         await update.message.reply_text("⚠️ End time must be later than start time.")
         return TIME
 
-    # Check overlap and save
     result = save_booking(date_str, time_input, user.first_name, user.id)
 
     if result == "overlap":
         await update.message.reply_text("⚠️ That time overlaps with another booking. Please choose another slot.")
         return TIME
-
     elif result == "invalid":
         await update.message.reply_text("❌ Could not save booking. Please try again.")
         return TIME
-
     elif result == "success":
         await update.message.reply_text(f"✅ Booking confirmed for {date_str} at {time_input}.")
 
         # Announce to group with sorted schedule
         try:
             records = sheet.get_all_records()
-
-            # ✅ Sort by date + time (old → new)
-            def sort_key(row):
-                try:
-                    date_obj = datetime.strptime(row["Date"], "%d/%m/%Y")
-                    time_start = row["Time"].split("-")[0] if "-" in row["Time"] else row["Time"]
-                    time_obj = datetime.strptime(time_start, "%H:%M")
-                    return (date_obj, time_obj)
-                except Exception:
-                    return (datetime.max, datetime.max)
-
             records.sort(key=sort_key)
 
-            # ✅ Build clean message
             message = (
                 f"📢 *New Booking Added!*\n\n"
                 f"👤 {user.first_name}\n"
@@ -329,15 +225,12 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             print(f"⚠️ Could not send group message: {e}")
 
-
-# ✅ Cancel by number (private only)
+# ----------------- Cancel flow -----------------
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/cancel")
-    user = update.message.from_user
     records = sheet.get_all_records()
 
-    # Find all bookings by this user
     user_bookings = [
         (i + 2, row) for i, row in enumerate(records)
         if str(row.get("TelegramID")) == str(user.id)
@@ -347,7 +240,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ You don’t have any bookings to cancel.")
         return ConversationHandler.END
 
-    # Show list of bookings to the user
     message = "🗓 *Your Bookings:*\n\n"
     for idx, (row_num, row) in enumerate(user_bookings, start=1):
         message += f"{idx}. {row['Date']} | {row['Time']}\n"
@@ -358,7 +250,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["user_bookings"] = user_bookings
     return CANCEL_SELECT
 
-
 async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text
     user_bookings = context.user_data.get("user_bookings", [])
@@ -368,71 +259,44 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
         choice = int(user_input)
     except ValueError:
         await update.message.reply_text("❌ Please enter a valid number.")
-        return TIME
+        return CANCEL_SELECT
 
     if not (1 <= choice <= len(user_bookings)):
         await update.message.reply_text("❌ Invalid choice. Try again.")
-        return TIME
+        return CANCEL_SELECT
 
-    # Find and delete the selected booking
     row_index, booking = user_bookings[choice - 1]
     canceled_date = booking["Date"]
     canceled_time = booking["Time"]
     sheet.delete_rows(row_index)
 
-    # Confirm to user
-    await update.message.reply_text(
-        f"✅ Canceled booking on {canceled_date} at {canceled_time}."
-    )
+    await update.message.reply_text(f"✅ Canceled booking on {canceled_date} at {canceled_time}.")
 
-    # Get updated list of bookings
+    # Build updated schedule message
     records = sheet.get_all_records()
-
     if records:
-        # ✅ Sort by date + time (old → new)
-        def sort_key(row):
-            try:
-                date_obj = datetime.strptime(row["Date"], "%d/%m/%Y")
-                time_start = row["Time"].split("-")[0] if "-" in row["Time"] else row["Time"]
-                time_obj = datetime.strptime(time_start, "%H:%M")
-                return (date_obj, time_obj)
-            except Exception:
-                return (datetime.max, datetime.max)
-
         records.sort(key=sort_key)
-
         message = "📋 *Updated Schedule:*\n"
         for row in records:
             message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
     else:
         message = "📋 No bookings left."
 
-
-    # Create group announcement
     announcement = (
         f"❌ {user.first_name} *CANCEL* the booking:\n"
         f"📅 {canceled_date} | ⏰ {canceled_time}\n\n"
         f"{message}"
     )
 
-    # Send to group
     try:
-        await context.bot.send_message(
-            chat_id=GROUP_CHAT_ID,
-            text=announcement,
-            parse_mode="Markdown"
-        )
+        await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=announcement, parse_mode="Markdown")
     except Exception as e:
         print(f"⚠️ Could not send group message: {e}")
 
     return ConversationHandler.END
 
-#======================================== End the active Meeting ===============================================================
-
+# ----------------- End meeting -----------------
 async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    log_user_action(user, "/end")
-    """Allow users to end their meeting only if it's within or shortly after the booked time."""
     user = update.message.from_user
     log_user_action(user, "/end")
 
@@ -446,11 +310,9 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ You don’t have any active meetings to end.")
         return
 
-    # Get current Phnom Penh time
     tz = pytz.timezone("Asia/Phnom_Penh")
     now = datetime.now(tz)
 
-    # Find active or recently ended meeting
     active_meeting = None
     active_row_index = None
 
@@ -466,7 +328,6 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print(f"⚠️ Error parsing time: {e}")
             continue
 
-        # Allow end only during meeting or within 30 mins after
         if start_dt <= now <= end_dt + timedelta(minutes=30):
             active_meeting = booking
             active_row_index = row_index
@@ -479,7 +340,6 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # --- Valid meeting found: remove it and announce ---
     sheet.delete_rows(active_row_index)
     ended_date = active_meeting["Date"]
     ended_time = active_meeting["Time"]
@@ -492,21 +352,15 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
-        await context.bot.send_message(
-            chat_id=GROUP_CHAT_ID,
-            text=message,
-            parse_mode="Markdown"
-        )
+        await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode="Markdown")
         await update.message.reply_text("✅ Meeting ended and announced to the group.")
         print(f"✅ Meeting ended for {user.first_name}: {ended_date} {ended_time}")
     except Exception as e:
         print(f"⚠️ Could not send group message: {e}")
         await update.message.reply_text("⚠️ Meeting ended but could not announce to group.")
 
-#================================================== Statistics =================================================================
-
+# ----------------- Stats -----------------
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show summary of all users' actions sorted by most recent activity."""
     try:
         spreadsheet = client.open_by_url(SPREADSHEET_URL)
         stats_sheet = spreadsheet.worksheet("UserStats")
@@ -516,9 +370,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("📊 No user activity data yet.")
             return
 
-        # Group and summarize
         summary = {}
-
         for row in records:
             name = row["Name"]
             action = row["Command"]
@@ -535,23 +387,17 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             summary[name]["last_action"] = last_time
             summary[name]["actions"][action] = summary[name]["actions"].get(action, 0) + 1
 
-        # ✅ Sort users by newest last_action first
-        def sort_key(item):
+        def sort_key_stats(item):
             try:
                 return datetime.strptime(item[1]["last_action"], "%d/%m/%Y %H:%M:%S")
             except:
                 return datetime.min
 
-        sorted_users = sorted(summary.items(), key=sort_key, reverse=True)
+        sorted_users = sorted(summary.items(), key=sort_key_stats, reverse=True)
 
-        # Build compact message
         message = "📊 *All User Activity Summary:*\n\n"
-
         for name, info in sorted_users:
-            actions_text = ", ".join(
-                [f"{cmd}({count})" for cmd, count in info["actions"].items()]
-            )
-
+            actions_text = ", ".join([f"{cmd}({count})" for cmd, count in info["actions"].items()])
             message += (
                 f"👤 *{name}*\n"
                 f"🕒 Last: {info['last_action']}\n"
@@ -565,10 +411,8 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"⚠️ Error generating stats: {e}")
         await update.message.reply_text("⚠️ Could not retrieve stats.")
 
-        
-#==================================== announcement===========================================================================================
+# ----------------- Announce (admin) -----------------
 async def announce(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Step 1: Admin starts the announce command."""
     user = update.message.from_user
     if user.id != ADMIN_ID:
         await update.message.reply_text("🚫 You are not authorized to use this command.")
@@ -577,9 +421,7 @@ async def announce(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📝 Please type your announcement message:")
     return ANNOUNCE_MESSAGE
 
-
 async def send_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Step 2: Send the admin’s message to the group."""
     user = update.message.from_user
     message_text = update.message.text.strip()
 
@@ -591,7 +433,6 @@ async def send_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Empty message, please type something or /cancel.")
         return ANNOUNCE_MESSAGE
 
-    # --- Send to group ---
     try:
         await context.bot.send_message(
             chat_id=GROUP_CHAT_ID,
@@ -606,16 +447,97 @@ async def send_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return ConversationHandler.END
 
- # ===================== AUTO CLEANUP OLD BOOKINGS ==================================================================
-    
+# ----------------- Admin Upload Docs -----------------
+async def upload_doc_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    if user.id != ADMIN_ID:
+        await update.message.reply_text("🚫 You are not authorized to upload documents.")
+        return ConversationHandler.END
+
+    await update.message.reply_text(
+        "📤 Please send the document file you want to upload (e.g., .docx, .pdf, .xlsx).",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return UPLOAD_DOC
+
+async def receive_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    document = update.message.document
+
+    if not document:
+        await update.message.reply_text("⚠️ Please send a valid document file.")
+        return UPLOAD_DOC
+
+    try:
+        os.makedirs("docs", exist_ok=True)
+        file_path = os.path.join("docs", document.file_name)
+        file = await document.get_file()
+        await file.download_to_drive(file_path)
+        await update.message.reply_text(f"✅ File saved: {document.file_name}\nUsers can now access it with /docs.")
+        print(f"✅ Admin uploaded {document.file_name} to docs/")
+    except Exception as e:
+        await update.message.reply_text("⚠️ Failed to save the file.")
+        print(f"⚠️ Error saving file: {e}")
+
+    return ConversationHandler.END
+
+# ----------------- User Download Docs -----------------
+async def docs_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    log_user_action(user, "/docs")
+
+    try:
+        files = [f for f in os.listdir("docs") if f != ".keep"]
+    except Exception:
+        files = []
+
+    if not files:
+        await update.message.reply_text("📂 No documents available yet. Ask the admin to upload some.")
+        return ConversationHandler.END
+
+    keyboard = []
+    row = []
+    for i, f in enumerate(files, 1):
+        row.append(f"📄 {f}")
+        if i % 2 == 0:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text("📁 Please choose a document to download:", reply_markup=reply_markup)
+    return DOC_SELECT
+
+async def send_selected_doc(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    choice = update.message.text.strip().replace("📄 ", "")
+    file_path = os.path.join("docs", choice)
+
+    if not os.path.exists(file_path):
+        await update.message.reply_text("⚠️ I couldn’t find that file. Try /docs again.")
+        return ConversationHandler.END
+
+    try:
+        with open(file_path, "rb") as f:
+            await update.message.reply_document(
+                document=InputFile(f, filename=choice),
+                caption=f"📘 Here’s your document: {choice}"
+            )
+        print(f"✅ Sent {choice} to {update.message.from_user.first_name}")
+    except Exception as e:
+        await update.message.reply_text("⚠️ Failed to send the document.")
+        print(f"⚠️ Error sending document: {e}")
+
+    return ConversationHandler.END
+
+# ----------------- Auto Cleanup -----------------
 async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE = None):
     """
     Works both when called manually (update + context) and when called by JobQueue
     (first arg will be the context object).
     """
-    # --- Normalize args: if called by JobQueue the first positional arg will be context ---
+    # Normalize args: if called by JobQueue the first positional arg will be context
     if context is None and update is not None and not hasattr(update, "message"):
-        # update is actually the CallbackContext; shift variables
         context = update
         update = None
 
@@ -626,14 +548,12 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
     removed = []
     updated_records = []
 
-    # --- Identify expired and valid records ---
     for row in records:
         try:
             date_str = row["Date"]
             time_str = row["Time"]
             name = row["Name"]
 
-            # Parse meeting end time
             start_time_str, end_time_str = time_str.split("-")
             meeting_end = datetime.strptime(f"{date_str} {end_time_str.strip()}", "%d/%m/%Y %H:%M")
             meeting_end = tz.localize(meeting_end)
@@ -645,7 +565,6 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
         except Exception as e:
             print(f"⚠️ Error parsing record: {e}")
 
-    # --- If expired meetings found ---
     if removed:
         try:
             headers = ["Date", "Time", "Name", "TelegramID"]
@@ -663,35 +582,21 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
             sheet.update("A1", new_data)
             print("✅ Sheet successfully rewritten with updated records.")
 
-            # --- Build message ---
             message = "🧹 *Expired Meetings Removed:*\n"
             for r in removed:
                 message += f"• {r}\n"
 
             if updated_records:
-                # ✅ Sort by date + time (old → new)
-                def sort_key(row):
-                    try:
-                        date_obj = datetime.strptime(row["Date"], "%d/%m/%Y")
-                        time_start = row["Time"].split("-")[0] if "-" in row["Time"] else row["Time"]
-                        time_obj = datetime.strptime(time_start, "%H:%M")
-                        return (date_obj, time_obj)
-                    except Exception:
-                        return (datetime.max, datetime.max)
-
                 updated_records.sort(key=sort_key)
-
                 message += "\n📋 *Updated Schedule:*\n"
                 for row in updated_records:
                     message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
             else:
                 message += "\n✅ No meetings left."
 
-            # --- Send message to group (requires context) ---
             if context:
                 await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode="Markdown")
 
-            # Reply to user if command was manual
             if update and getattr(update, "message", None):
                 await update.message.reply_text("✅ Cleanup completed and group updated!")
 
@@ -707,19 +612,16 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
                 )
     else:
         print("✅ No expired meetings found during cleanup.")
-        # ✅ Notify user if manual command
         if update and getattr(update, "message", None):
             await update.message.reply_text("✨ There are no expired bookings to clean up.")
-        
-# ================= CLEAR WEBHOOK =============================================================================================================
+
+# ----------------- Webhook utils & admin notify -----------------
 async def clear_webhook(bot_token):
     """Ensure the bot is in polling mode (not webhook)."""
     bot = Bot(bot_token)
     await bot.delete_webhook(drop_pending_updates=True)
     print("✅ Webhook cleared successfully!")
 
-#======================================== Notify_admin when stop or crash ===================================  
-     
 async def notify_admin(bot, message: str):
     """Send a notification message to the admin."""
     try:
@@ -728,13 +630,17 @@ async def notify_admin(bot, message: str):
     except Exception as e:
         print(f"⚠️ Failed to notify admin: {e}")
 
-# ================================================== MAIN ==========================================================================================
-# ================================================== MAIN ==========================================================================================
+# ----------------- Generic conversation cancel fallback -----------------
+async def conv_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("↩️ Conversation cancelled.", reply_markup=ReplyKeyboardRemove())
+    return ConversationHandler.END
+
+# ===================== MAIN =====================
 def main():
     request = HTTPXRequest(connect_timeout=30.0, read_timeout=120.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
 
-    # ✅ Initialize job queue safely
+    # Initialize job queue if needed
     job_queue = getattr(app, "job_queue", None)
     if not job_queue:
         try:
@@ -745,7 +651,7 @@ def main():
         except Exception as e:
             print(f"⚠️ Could not initialize job queue: {e}")
 
-    # --- Define commands for user and admin ---
+    # Define commands
     user_commands = [
         BotCommand("start", "Start"),
         BotCommand("book", "Book room"),
@@ -761,12 +667,10 @@ def main():
         BotCommand("uploaddoc", "Upload file"),
     ]
 
-    # --- Set different menus for user vs admin ---
+    # Set commands with proper scopes
     async def set_commands(application):
-        # Normal users
-        await application.bot.set_my_commands(user_commands, scope={"type": "default"})
-        # Admin only
-        await application.bot.set_my_commands(admin_commands, scope={"type": "chat", "chat_id": ADMIN_ID})
+        await application.bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
+        await application.bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(ADMIN_ID))
         print("✅ Command menus set for users and admin.")
 
         # Clear webhook safely
@@ -774,14 +678,16 @@ def main():
 
     app.post_init = set_commands
 
-    # --- Conversations ---
+    # Conversations
+    fallback_list = [CommandHandler("cancel", conv_cancel)]
+
     book_conv = ConversationHandler(
         entry_points=[CommandHandler("book", book)],
         states={
             DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_date)],
             TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_time)],
         },
-        fallbacks=[],
+        fallbacks=fallback_list,
         per_chat=True,
         per_user=True,
     )
@@ -791,7 +697,7 @@ def main():
         states={
             CANCEL_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_booking_by_number)],
         },
-        fallbacks=[],
+        fallbacks=fallback_list,
         per_chat=True,
         per_user=True,
     )
@@ -801,34 +707,32 @@ def main():
         states={
             ANNOUNCE_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_announcement)],
         },
-        fallbacks=[],
+        fallbacks=fallback_list,
         per_user=True,
         per_chat=True,
     )
 
-    # --- Document Upload Handler (admin only)
     upload_conv = ConversationHandler(
         entry_points=[CommandHandler("uploaddoc", upload_doc_start)],
         states={
             UPLOAD_DOC: [MessageHandler(filters.Document.ALL, receive_document)],
         },
-        fallbacks=[],
+        fallbacks=fallback_list,
         per_user=True,
         per_chat=True,
     )
 
-    # --- Docs Download Handler (for all users)
     docs_conv = ConversationHandler(
         entry_points=[CommandHandler("docs", docs_menu)],
         states={
             DOC_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_selected_doc)],
         },
-        fallbacks=[],
+        fallbacks=fallback_list,
         per_user=True,
         per_chat=True,
     )
 
-    # --- Register all handlers ---
+    # Register handlers
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("start", start))
     app.add_handler(book_conv)
@@ -839,14 +743,12 @@ def main():
     app.add_handler(upload_conv)
     app.add_handler(docs_conv)
 
-    # --- Schedule auto cleanup ---
+    # Schedule auto cleanup every hour
     job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
     print("🕒 Auto-cleanup scheduled every 1 hour.")
     print("✅ Meeting Room Bot is running...")
 
-    # ✅ Run the polling (now webhook cleared safely inside loop)
     app.run_polling()
-
 
 if __name__ == "__main__":
     try:
@@ -862,64 +764,3 @@ if __name__ == "__main__":
             )
         except Exception as inner_e:
             print(f"⚠️ Failed to send crash alert: {inner_e}")
-
-
-
-
- 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
