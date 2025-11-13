@@ -637,6 +637,12 @@ async def conv_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ===================== MAIN =====================
 def main():
+    # 🔥 Force webhook clear BEFORE creating bot (prevents conflict with polling)
+    try:
+        asyncio.run(clear_webhook(TOKEN))
+        print("✅ Early webhook cleared before ApplicationBuilder.")
+    except Exception as e:
+        print("⚠️ Early webhook clear failed:", e)
     request = HTTPXRequest(connect_timeout=30.0, read_timeout=120.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
 
@@ -764,3 +770,4 @@ if __name__ == "__main__":
             )
         except Exception as inner_e:
             print(f"⚠️ Failed to send crash alert: {inner_e}")
+
