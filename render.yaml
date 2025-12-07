@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: meeting-room-bot
+    env: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: python meeting_bot.py
+    autoDeploy: true
+    envVars:
+      - key: USE_WEBHOOK
+        value: true
+      - key: WEBAPP_HOST
+        value: 0.0.0.0
+      - key: WEBAPP_PORT
+        value: 10000
+      # Set this to your Render service URL after creating the service,
+      # or override in the dashboard.
+      - key: WEBHOOK_URL
+        value: https://<your-render-service>.onrender.com
+      # Secrets: set these in Render dashboard (override values)
+      - key: BOT_TOKEN
+        sync: false
+      - key: SPREADSHEET_URL
+        sync: false
+      - key: GROUP_CHAT_ID
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: GOOGLE_CREDENTIALS
+        sync: false

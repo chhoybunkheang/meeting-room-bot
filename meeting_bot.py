@@ -1,3 +1,11 @@
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram.request import HTTPXRequest
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    filters, ContextTypes, ConversationHandler, JobQueue
+)
+from zoneinfo import ZoneInfo
+from telegram import BotCommandScopeDefault, BotCommandScopeChat
 import os
 import json
 import gspread
@@ -6,22 +14,18 @@ import asyncio
 import pytz
 import re
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 from telegram import Bot, Update, BotCommand, InputFile
-from telegram import BotCommandScopeDefault, BotCommandScopeChat
-from zoneinfo import ZoneInfo
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler,
-    filters, ContextTypes, ConversationHandler, JobQueue
-)
-from telegram.request import HTTPXRequest
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ===================== CONFIG =====================
 TOKEN = os.getenv("BOT_TOKEN")
-SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1vvBRrL-qXx0jp5-ZRR4xVpOi5ejxE8DtxrHOrel7F78"
-GROUP_CHAT_ID = -1003073406158
-ADMIN_ID = 171208804  # Replace with your telegram id
+SPREADSHEET_URL = os.getenv("SPREADSHEET_URL")
+GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID"))
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
 # Conversation states
 DATE, TIME, CANCEL_SELECT = range(3)
@@ -51,39 +55,47 @@ spreadsheet = client.open_by_url(SPREADSHEET_URL)
 try:
     stats_sheet = spreadsheet.worksheet("UserStats")
 except gspread.exceptions.WorksheetNotFound:
-    stats_sheet = spreadsheet.add_worksheet(title="UserStats", rows="1000", cols="4")
+    stats_sheet = spreadsheet.add_worksheet(
+        title="UserStats", rows="1000", cols="4")
     stats_sheet.append_row(["TelegramID", "Name", "Command", "DateTime"])
 
 # ===================== HELPERS =====================
+
 
 def sort_key(row):
     """Reusable sort key: parse Date and start Time; fallback to max values."""
     try:
         date_obj = datetime.strptime(row["Date"], "%d/%m/%Y")
-        time_start = row["Time"].split("-")[0] if "-" in row["Time"] else row["Time"]
+        time_start = row["Time"].split(
+            "-")[0] if "-" in row["Time"] else row["Time"]
         time_obj = datetime.strptime(time_start.strip(), "%H:%M")
         return (date_obj, time_obj)
     except Exception:
         return (datetime.max, datetime.max)
+
 
 def log_user_action(user, command):
     """Log each user command to the 'UserStats' sheet (Phnom Penh time)."""
     try:
         now = datetime.now(ZoneInfo("Asia/Phnom_Penh"))
         now_str = now.strftime("%d/%m/%Y %H:%M:%S")
-        stats_sheet.append_row([str(user.id), user.first_name, command, now_str])
+        stats_sheet.append_row(
+            [str(user.id), user.first_name, command, now_str])
         print(f"✅ Logged {command} by {user.first_name} at {now_str}")
     except Exception as e:
         print(f"⚠️ Could not log action: {e}")
+
 
 def time_to_minutes(time_str):
     """Convert 'HH:MM' to total minutes for easy comparison."""
     h, m = map(int, time_str.split(":"))
     return h * 60 + m
 
+
 def is_overlapping(existing_start, existing_end, new_start, new_end):
     """Check if two time ranges overlap."""
     return not (new_end <= existing_start or new_start >= existing_end)
+
 
 def save_booking(date_str, time_str, name, telegram_id):
     """Save a booking only if the time range does not overlap with existing ones."""
@@ -112,6 +124,7 @@ def save_booking(date_str, time_str, name, telegram_id):
     sheet.append_row([date_str, time_str, name, str(telegram_id)])
     return "success"
 
+
 def cancel_booking(telegram_id, date_str, time_str):
     records = sheet.get_all_records()
     for i, row in enumerate(records, start=2):
@@ -126,6 +139,7 @@ def cancel_booking(telegram_id, date_str, time_str):
 
 # ===================== BOT COMMANDS =====================
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/start")
@@ -138,6 +152,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/docs - Download available documents"
     )
 
+
 async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/book")
@@ -145,6 +160,8 @@ async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return DATE
 
 # ----------------- Get Date -----------------
+
+
 async def get_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     date_input = update.message.text.strip()
 
@@ -173,6 +190,8 @@ async def get_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TIME
 
 # ----------------- Get Time & Save -----------------
+
+
 async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     time_input = update.message.text.strip()
     user = update.message.from_user
@@ -226,6 +245,8 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print(f"⚠️ Could not send group message: {e}")
 
 # ----------------- Cancel flow -----------------
+
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/cancel")
@@ -249,6 +270,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["user_bookings"] = user_bookings
     return CANCEL_SELECT
+
 
 async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text
@@ -296,6 +318,8 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
     return ConversationHandler.END
 
 # ----------------- End meeting -----------------
+
+
 async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/end")
@@ -322,8 +346,10 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         start_str, end_str = [t.strip() for t in time_str.split("-")]
 
         try:
-            start_dt = tz.localize(datetime.strptime(f"{date_str} {start_str}", "%d/%m/%Y %H:%M"))
-            end_dt = tz.localize(datetime.strptime(f"{date_str} {end_str}", "%d/%m/%Y %H:%M"))
+            start_dt = tz.localize(datetime.strptime(
+                f"{date_str} {start_str}", "%d/%m/%Y %H:%M"))
+            end_dt = tz.localize(datetime.strptime(
+                f"{date_str} {end_str}", "%d/%m/%Y %H:%M"))
         except Exception as e:
             print(f"⚠️ Error parsing time: {e}")
             continue
@@ -354,12 +380,15 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode="Markdown")
         await update.message.reply_text("✅ Meeting ended and announced to the group.")
-        print(f"✅ Meeting ended for {user.first_name}: {ended_date} {ended_time}")
+        print(
+            f"✅ Meeting ended for {user.first_name}: {ended_date} {ended_time}")
     except Exception as e:
         print(f"⚠️ Could not send group message: {e}")
         await update.message.reply_text("⚠️ Meeting ended but could not announce to group.")
 
 # ----------------- Stats -----------------
+
+
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         spreadsheet = client.open_by_url(SPREADSHEET_URL)
@@ -385,7 +414,8 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             summary[name]["total"] += 1
             summary[name]["last_action"] = last_time
-            summary[name]["actions"][action] = summary[name]["actions"].get(action, 0) + 1
+            summary[name]["actions"][action] = summary[name]["actions"].get(
+                action, 0) + 1
 
         def sort_key_stats(item):
             try:
@@ -393,11 +423,13 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 return datetime.min
 
-        sorted_users = sorted(summary.items(), key=sort_key_stats, reverse=True)
+        sorted_users = sorted(
+            summary.items(), key=sort_key_stats, reverse=True)
 
         message = "📊 *All User Activity Summary:*\n\n"
         for name, info in sorted_users:
-            actions_text = ", ".join([f"{cmd}({count})" for cmd, count in info["actions"].items()])
+            actions_text = ", ".join(
+                [f"{cmd}({count})" for cmd, count in info["actions"].items()])
             message += (
                 f"👤 *{name}*\n"
                 f"🕒 Last: {info['last_action']}\n"
@@ -412,6 +444,8 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Could not retrieve stats.")
 
 # ----------------- Announce (admin) -----------------
+
+
 async def announce(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     if user.id != ADMIN_ID:
@@ -420,6 +454,7 @@ async def announce(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("📝 Please type your announcement message:")
     return ANNOUNCE_MESSAGE
+
 
 async def send_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -448,6 +483,8 @@ async def send_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # ----------------- Admin Upload Docs -----------------
+
+
 async def upload_doc_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     if user.id != ADMIN_ID:
@@ -459,6 +496,7 @@ async def upload_doc_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardRemove()
     )
     return UPLOAD_DOC
+
 
 async def receive_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -482,6 +520,8 @@ async def receive_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # ----------------- User Download Docs -----------------
+
+
 async def docs_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/docs")
@@ -505,9 +545,11 @@ async def docs_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if row:
         keyboard.append(row)
 
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text("📁 Please choose a document to download:", reply_markup=reply_markup)
     return DOC_SELECT
+
 
 async def send_selected_doc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = update.message.text.strip().replace("📄 ", "")
@@ -531,6 +573,8 @@ async def send_selected_doc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # ----------------- Auto Cleanup -----------------
+
+
 async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE = None):
     """
     Works both when called manually (update + context) and when called by JobQueue
@@ -555,7 +599,8 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
             name = row["Name"]
 
             start_time_str, end_time_str = time_str.split("-")
-            meeting_end = datetime.strptime(f"{date_str} {end_time_str.strip()}", "%d/%m/%Y %H:%M")
+            meeting_end = datetime.strptime(
+                f"{date_str} {end_time_str.strip()}", "%d/%m/%Y %H:%M")
             meeting_end = tz.localize(meeting_end)
 
             if meeting_end < now:
@@ -616,11 +661,14 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text("✨ There are no expired bookings to clean up.")
 
 # ----------------- Webhook utils & admin notify -----------------
+
+
 async def clear_webhook(bot_token):
     """Ensure the bot is in polling mode (not webhook)."""
     bot = Bot(bot_token)
     await bot.delete_webhook(drop_pending_updates=True)
     print("✅ Webhook cleared successfully!")
+
 
 async def notify_admin(bot, message: str):
     """Send a notification message to the admin."""
@@ -631,13 +679,17 @@ async def notify_admin(bot, message: str):
         print(f"⚠️ Failed to notify admin: {e}")
 
 # ----------------- Generic conversation cancel fallback -----------------
+
+
 async def conv_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("↩️ Conversation cancelled.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 # ===================== MAIN =====================
+
+
 def main():
-    
+
     request = HTTPXRequest(connect_timeout=30.0, read_timeout=120.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
 
@@ -747,9 +799,40 @@ def main():
     # Schedule auto cleanup every hour
     job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
     print("🕒 Auto-cleanup scheduled every 1 hour.")
-    print("✅ Meeting Room Bot is running...")
 
-    app.run_polling()
+    use_webhook = os.getenv("USE_WEBHOOK", "false").lower() == "true"
+    if use_webhook:
+        webhook_url = os.getenv("WEBHOOK_URL")
+        webapp_host = os.getenv("WEBAPP_HOST", "0.0.0.0")
+        webapp_port = int(os.getenv("WEBAPP_PORT", "8080"))
+        secret_token = os.getenv("WEBHOOK_SECRET_TOKEN")
+
+        if not webhook_url:
+            raise RuntimeError(
+                "USE_WEBHOOK=true but WEBHOOK_URL is not set in .env")
+
+        print(
+            f"✅ Starting webhook at {webapp_host}:{webapp_port} -> {webhook_url}")
+        app.run_webhook(
+            listen=webapp_host,
+            port=webapp_port,
+            webhook_url=webhook_url,
+            secret_token=secret_token,
+        )
+    else:
+        print("✅ Meeting Room Bot is running (polling)...")
+        try:
+            # Drop any pending updates to avoid conflicts from previous runs
+            app.run_polling(drop_pending_updates=True)
+        except Exception as e:
+            # Handle duplicate polling conflicts gracefully
+            if "terminated by other getUpdates request" in str(e):
+                print(
+                    "⚠️ Conflict: Another bot instance is polling. Please stop other running processes and run a single instance.")
+                print(
+                    "Hint: In PowerShell, run: Get-Process python* | Stop-Process -Force")
+            raise
+
 
 if __name__ == "__main__":
     try:
@@ -761,9 +844,8 @@ if __name__ == "__main__":
             asyncio.set_event_loop(loop)
             bot = Bot(token=TOKEN)
             loop.run_until_complete(
-                notify_admin(bot, f"⚠️ [Bot Alert]\n\nBot stopped or crashed.\nError: {e}")
+                notify_admin(
+                    bot, f"⚠️ [Bot Alert]\n\nBot stopped or crashed.\nError: {e}")
             )
         except Exception as inner_e:
             print(f"⚠️ Failed to send crash alert: {inner_e}")
-
-
