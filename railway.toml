@@ -1,9 +1,6 @@
 [build]
 builder = "NIXPACKS"
 
-[build.nixpacksConfigPath]
-configPath = "nixpacks.toml"
-
 [deploy]
 startCommand = "python meeting_bot.py"
 restartPolicyType = "ON_FAILURE"
