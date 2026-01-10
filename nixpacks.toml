@@ -1,0 +1,11 @@
+providers = ["python"]
+
+[phases.setup]
+
+[phases.install]
+cmds = ["python -m pip install --upgrade pip", "python -m pip install -r requirements.txt"]
+
+[phases.build]
+
+[start]
+cmd = "python meeting_bot.py"
