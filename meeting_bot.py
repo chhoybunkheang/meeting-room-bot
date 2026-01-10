@@ -24,6 +24,17 @@ load_dotenv()
 # ===================== CONFIG =====================
 TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_URL = os.getenv("SPREADSHEET_URL")
+
+# Validate environment variables
+if not os.getenv("GROUP_CHAT_ID"):
+    raise ValueError("❌ GROUP_CHAT_ID environment variable is not set!")
+if not os.getenv("ADMIN_ID"):
+    raise ValueError("❌ ADMIN_ID environment variable is not set!")
+if not TOKEN:
+    raise ValueError("❌ BOT_TOKEN environment variable is not set!")
+if not SPREADSHEET_URL:
+    raise ValueError("❌ SPREADSHEET_URL environment variable is not set!")
+
 GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID"))
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
