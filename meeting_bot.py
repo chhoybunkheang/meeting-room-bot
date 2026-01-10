@@ -816,7 +816,8 @@ def main():
         webhook_url = os.getenv("WEBHOOK_URL")
         webapp_host = os.getenv("WEBAPP_HOST", "0.0.0.0")
         # Railway provides PORT, fallback to WEBAPP_PORT for other platforms
-        webapp_port = int(os.getenv("PORT") or os.getenv("WEBAPP_PORT", "8080"))
+        webapp_port = int(os.getenv("PORT")
+                          or os.getenv("WEBAPP_PORT", "8080"))
         secret_token = os.getenv("WEBHOOK_SECRET_TOKEN")
 
         if not webhook_url:
@@ -825,15 +826,7 @@ def main():
 
         print(
             f"✅ Starting webhook at {webapp_host}:{webapp_port} -> {webhook_url}")
-        
-        # Set webhook with Telegram
-        await app.bot.set_webhook(
-            url=webhook_url,
-            secret_token=secret_token,
-            allowed_updates=Update.ALL_TYPES
-        )
-        print(f"✅ Webhook registered with Telegram: {webhook_url}")
-        
+
         app.run_webhook(
             listen=webapp_host,
             port=webapp_port,
