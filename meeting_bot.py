@@ -615,7 +615,7 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
             meeting_end = tz.localize(meeting_end)
 
             if meeting_end < now:
-                removed.append(f"{date_str} | {time_str} | {name}")
+                removed.append(f"{date_str} | {time_str}")
             else:
                 updated_records.append(row)
         except Exception as e:
