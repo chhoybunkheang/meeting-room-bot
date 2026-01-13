@@ -638,7 +638,7 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
             sheet.update("A1", new_data)
             print("✅ Sheet successfully rewritten with updated records.")
 
-            message = "🧹 *Expired Meetings Removed:*\n"
+            message = "🧹 *Expired Schedule:*\n"
             for r in removed:
                 message += f"• {r}\n"
 
