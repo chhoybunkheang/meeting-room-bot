@@ -154,13 +154,23 @@ def cancel_booking(telegram_id, date_str, time_str):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/start")
+
+    # Get admin info
+    try:
+        admin = await context.bot.get_chat(ADMIN_ID)
+        admin_name = admin.first_name
+        admin_username = f"@{admin.username}" if admin.username else admin_name
+    except:
+        admin_username = "the admin"
+
     await update.message.reply_text(
         "👋 Welcome to the Meeting Room Bot!\n\n"
         "Commands:\n"
         "/book - Book the meeting room\n"
         "/cancel - Cancel your booking\n"
         "/end - End the active meeting\n"
-        "/docs - Download available documents"
+        "/docs - Download available documents\n\n"
+        f"ℹ️ Created by {admin_username}"
     )
 
 
@@ -696,6 +706,23 @@ async def conv_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("↩️ Conversation cancelled.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
+# ----------------- Welcome new members -----------------
+
+
+async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Welcome new members who join the group."""
+    for new_member in update.message.new_chat_members:
+        welcome_msg = (
+            f"👋 Welcome to the group, {new_member.first_name}!\n\n"
+            f"This is Meeting Room Booking Info.\n\n"
+            f"Use /start to see available commands!"
+        )
+        try:
+            await update.message.reply_text(welcome_msg)
+            print(f"✅ Welcomed new member: {new_member.first_name}")
+        except Exception as e:
+            print(f"⚠️ Could not send welcome message: {e}")
+
 # ===================== MAIN =====================
 
 
@@ -806,6 +833,8 @@ def main():
     app.add_handler(CommandHandler("clean", auto_cleanup))
     app.add_handler(upload_conv)
     app.add_handler(docs_conv)
+    app.add_handler(MessageHandler(
+        filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
 
     # Schedule auto cleanup every hour
     job_queue.run_repeating(auto_cleanup, interval=3600, first=10)
