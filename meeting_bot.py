@@ -1,22 +1,37 @@
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
-from telegram.request import HTTPXRequest
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler,
-    filters, ContextTypes, ConversationHandler, JobQueue
-)
-from zoneinfo import ZoneInfo
-from telegram import BotCommandScopeDefault, BotCommandScopeChat
-import os
-import json
-import gspread
-import dateparser
 import asyncio
-import pytz
+import json
+import os
 import re
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+import dateparser
+import gspread
+import pytz
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
-from telegram import Bot, Update, BotCommand, InputFile
+from telegram import (
+    Bot,
+    BotCommand,
+    BotCommandScopeChat,
+    BotCommandScopeDefault,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputFile,
+    ReplyKeyboardRemove,
+    Update,
+)
+from telegram.ext import (
+    ApplicationBuilder,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    JobQueue,
+    MessageHandler,
+    filters,
+)
+from telegram.request import HTTPXRequest
 
 # Load environment variables from .env file
 load_dotenv()
@@ -42,8 +57,7 @@ ADMIN_ID = int(os.getenv("ADMIN_ID"))
 DATE, TIME, CANCEL_SELECT = range(3)
 ANNOUNCE_MESSAGE = 200
 
-# States for docs upload/download
-DOC_SELECT = 100
+# State for docs upload
 UPLOAD_DOC = 101
 
 # Ensure docs folder exists
@@ -540,7 +554,7 @@ async def receive_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return ConversationHandler.END
 
-# ----------------- User Download Docs -----------------
+# ----------------- User Download Docs (Inline Keyboard) -----------------
 
 
 async def docs_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -554,44 +568,42 @@ async def docs_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not files:
         await update.message.reply_text("📂 No documents available yet. Ask the admin to upload some.")
-        return ConversationHandler.END
+        return
 
-    keyboard = []
-    row = []
-    for i, f in enumerate(files, 1):
-        row.append(f"📄 {f}")
-        if i % 2 == 0:
-            keyboard.append(row)
-            row = []
-    if row:
-        keyboard.append(row)
+    keyboard = [
+        [InlineKeyboardButton(f"📄 {f}", callback_data=f"docs:{f}")]
+        for f in files
+    ]
 
-    reply_markup = ReplyKeyboardMarkup(
-        keyboard, one_time_keyboard=True, resize_keyboard=True)
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("📁 Please choose a document to download:", reply_markup=reply_markup)
-    return DOC_SELECT
 
 
-async def send_selected_doc(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    choice = update.message.text.strip().replace("📄 ", "")
-    file_path = os.path.join("docs", choice)
+async def handle_docs_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data or ""
+    if not data.startswith("docs:"):
+        return
+
+    filename = data.split("docs:", 1)[1]
+    file_path = os.path.join("docs", filename)
 
     if not os.path.exists(file_path):
-        await update.message.reply_text("⚠️ I couldn’t find that file. Try /docs again.")
-        return ConversationHandler.END
+        await query.message.reply_text("⚠️ I couldn’t find that file. Try /docs again.")
+        return
 
     try:
         with open(file_path, "rb") as f:
-            await update.message.reply_document(
-                document=InputFile(f, filename=choice),
-                caption=f"📘 Here’s your document: {choice}"
+            await query.message.reply_document(
+                document=InputFile(f, filename=filename),
+                caption=f"📘 Here’s your document: {filename}"
             )
-        print(f"✅ Sent {choice} to {update.message.from_user.first_name}")
+        print(f"✅ Sent {filename} to {query.from_user.first_name}")
     except Exception as e:
-        await update.message.reply_text("⚠️ Failed to send the document.")
+        await query.message.reply_text("⚠️ Failed to send the document.")
         print(f"⚠️ Error sending document: {e}")
-
-    return ConversationHandler.END
 
 # ----------------- Auto Cleanup -----------------
 
@@ -813,16 +825,6 @@ def main():
         per_chat=True,
     )
 
-    docs_conv = ConversationHandler(
-        entry_points=[CommandHandler("docs", docs_menu)],
-        states={
-            DOC_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_selected_doc)],
-        },
-        fallbacks=fallback_list,
-        per_user=True,
-        per_chat=True,
-    )
-
     # Register handlers
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("start", start))
@@ -832,7 +834,8 @@ def main():
     app.add_handler(announce_conv)
     app.add_handler(CommandHandler("clean", auto_cleanup))
     app.add_handler(upload_conv)
-    app.add_handler(docs_conv)
+    app.add_handler(CommandHandler("docs", docs_menu))
+    app.add_handler(CallbackQueryHandler(handle_docs_button, pattern="^docs:"))
     app.add_handler(MessageHandler(
         filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
 
