@@ -657,7 +657,7 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
                     r.get("TelegramID", "")
                 ])
 
-            sheet.update("A1", new_data)
+            sheet.update(new_data, "A1")
             print("✅ Sheet successfully rewritten with updated records.")
 
             message = "🧹 *Expired Schedule:*\n"
