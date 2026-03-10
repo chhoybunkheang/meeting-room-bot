@@ -199,10 +199,11 @@ async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now_pp = datetime.now(tz)
     keyboard = _build_month_keyboard(now_pp)
 
-    await update.message.reply_text(
+    prompt_message = await update.message.reply_text(
         "📅 Choose a month to book:",
         reply_markup=keyboard,
     )
+    _remember_booking_prompt(prompt_message, context)
     return SELECT_MONTH
 
 
@@ -215,10 +216,11 @@ async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_T
 
     if data == "month:choose":
         now_pp = datetime.now(tz)
-        await query.edit_message_text(
+        edited_message = await query.edit_message_text(
             "📅 Choose a month to book:",
             reply_markup=_build_month_keyboard(now_pp),
         )
+        _remember_booking_prompt(edited_message, context)
         return SELECT_MONTH
 
     if not data.startswith("month:"):
@@ -228,7 +230,8 @@ async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_T
         year_month = data.split(":", 1)[1]
         year, month = map(int, year_month.split("-"))
     except Exception:
-        await query.edit_message_text("⚠️ Could not read that month. Please choose again.")
+        edited_message = await query.edit_message_text("⚠️ Could not read that month. Please choose again.")
+        _remember_booking_prompt(edited_message, context)
         return SELECT_MONTH
 
     day_keyboard = _build_day_keyboard(year, month, tz)
@@ -236,16 +239,18 @@ async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_T
     # If no days are available (e.g., all past), show month picker again
     if len(day_keyboard.inline_keyboard) <= 1:  # only the back button exists
         now_pp = datetime.now(tz)
-        await query.edit_message_text(
+        edited_message = await query.edit_message_text(
             "⚠️ No future days left in that month. Pick another month:",
             reply_markup=_build_month_keyboard(now_pp),
         )
+        _remember_booking_prompt(edited_message, context)
         return SELECT_MONTH
 
-    await query.edit_message_text(
+    edited_message = await query.edit_message_text(
         f"📅 {datetime(year, month, 1).strftime('%B %Y')}\nChoose a day:",
         reply_markup=day_keyboard,
     )
+    _remember_booking_prompt(edited_message, context)
     return SELECT_DAY
 
 
@@ -261,15 +266,17 @@ async def handle_day_selection(update: Update, context: ContextTypes.DEFAULT_TYP
         _, date_str = data.split(":", 1)
         year, month, day = map(int, date_str.split("-"))
     except Exception:
-        await query.edit_message_text("⚠️ Could not read that day. Please choose again.")
+        edited_message = await query.edit_message_text("⚠️ Could not read that day. Please choose again.")
+        _remember_booking_prompt(edited_message, context)
         return SELECT_DAY
 
     selected_date = datetime(year, month, day)
     context.user_data["date"] = selected_date.strftime("%d/%m/%Y")
 
-    await query.edit_message_text(
+    edited_message = await query.edit_message_text(
         f"📅 Selected: {context.user_data['date']}\n⏰ Now enter the time range (e.g. 14:00-15:00):"
     )
+    _remember_booking_prompt(edited_message, context)
     return TIME
 
 # ----------------- Get Date -----------------
@@ -316,6 +323,38 @@ def _build_day_keyboard(year: int, month: int, tz: ZoneInfo) -> InlineKeyboardMa
     rows.append([InlineKeyboardButton("🔙 Choose month", callback_data="month:choose")])
     return InlineKeyboardMarkup(rows)
 
+
+def _remember_booking_prompt(message, context: ContextTypes.DEFAULT_TYPE):
+    """Track the latest booking prompt message so it can be cleaned up if cancelled."""
+    if not message:
+        return
+    context.user_data["booking_prompt_message"] = {
+        "chat_id": message.chat_id,
+        "message_id": message.message_id,
+    }
+
+
+def _clear_booking_prompt(context: ContextTypes.DEFAULT_TYPE):
+    """Forget any stored booking prompt reference once the flow is complete."""
+    context.user_data.pop("booking_prompt_message", None)
+
+
+async def _delete_booking_prompt(context: ContextTypes.DEFAULT_TYPE):
+    """Remove the stored booking prompt message when the user cancels the flow."""
+    prompt_info = context.user_data.pop("booking_prompt_message", None)
+    if not prompt_info:
+        return
+
+    chat_id = prompt_info.get("chat_id")
+    message_id = prompt_info.get("message_id")
+    if chat_id is None or message_id is None:
+        return
+
+    try:
+        await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
+    except Exception as e:
+        print(f"⚠️ Could not delete booking prompt: {e}")
+
 # ----------------- Get Time & Save -----------------
 
 
@@ -350,6 +389,8 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return TIME
     elif result == "success":
         await update.message.reply_text(f"✅ Booking confirmed for {date_str} at {time_input}.")
+
+        _clear_booking_prompt(context)
 
         # Announce to group with sorted schedule
         try:
@@ -807,6 +848,7 @@ async def notify_admin(bot, message: str):
 
 
 async def conv_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _delete_booking_prompt(context)
     await update.message.reply_text("↩️ Conversation cancelled.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
