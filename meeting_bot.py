@@ -3,6 +3,7 @@ import calendar
 import json
 import os
 import re
+import warnings
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -33,9 +34,11 @@ from telegram.ext import (
     filters,
 )
 from telegram.request import HTTPXRequest
+from telegram.warnings import PTBUserWarning
 
 # Load environment variables from .env file
 load_dotenv()
+warnings.simplefilter("ignore", PTBUserWarning)
 
 # ===================== CONFIG =====================
 TOKEN = os.getenv("BOT_TOKEN")
@@ -886,7 +889,6 @@ def main():
         fallbacks=fallback_list,
         per_chat=True,
         per_user=True,
-        per_message=True,
     )
 
     cancel_conv = ConversationHandler(
