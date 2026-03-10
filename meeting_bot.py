@@ -886,6 +886,7 @@ def main():
         fallbacks=fallback_list,
         per_chat=True,
         per_user=True,
+        per_message=True,
     )
 
     cancel_conv = ConversationHandler(
