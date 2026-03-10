@@ -1,4 +1,5 @@
 import asyncio
+import calendar
 import json
 import os
 import re
@@ -54,7 +55,7 @@ GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID"))
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
 # Conversation states
-DATE, TIME, CANCEL_SELECT = range(3)
+SELECT_MONTH, SELECT_DAY, TIME, CANCEL_SELECT = range(4)
 ANNOUNCE_MESSAGE = 200
 
 # State for docs upload
@@ -191,38 +192,126 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/book")
-    await update.message.reply_text("📅 Please enter the date (e.g. 30/10/2025 or 30/10):")
-    return DATE
+    tz = ZoneInfo("Asia/Phnom_Penh")
+    now_pp = datetime.now(tz)
+    keyboard = _build_month_keyboard(now_pp)
+
+    await update.message.reply_text(
+        "📅 Choose a month to book:",
+        reply_markup=keyboard,
+    )
+    return SELECT_MONTH
+
+
+async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data or ""
+    tz = ZoneInfo("Asia/Phnom_Penh")
+
+    if data == "month:choose":
+        now_pp = datetime.now(tz)
+        await query.edit_message_text(
+            "📅 Choose a month to book:",
+            reply_markup=_build_month_keyboard(now_pp),
+        )
+        return SELECT_MONTH
+
+    if not data.startswith("month:"):
+        return SELECT_MONTH
+
+    try:
+        year_month = data.split(":", 1)[1]
+        year, month = map(int, year_month.split("-"))
+    except Exception:
+        await query.edit_message_text("⚠️ Could not read that month. Please choose again.")
+        return SELECT_MONTH
+
+    day_keyboard = _build_day_keyboard(year, month, tz)
+
+    # If no days are available (e.g., all past), show month picker again
+    if len(day_keyboard.inline_keyboard) <= 1:  # only the back button exists
+        now_pp = datetime.now(tz)
+        await query.edit_message_text(
+            "⚠️ No future days left in that month. Pick another month:",
+            reply_markup=_build_month_keyboard(now_pp),
+        )
+        return SELECT_MONTH
+
+    await query.edit_message_text(
+        f"📅 {datetime(year, month, 1).strftime('%B %Y')}\nChoose a day:",
+        reply_markup=day_keyboard,
+    )
+    return SELECT_DAY
+
+
+async def handle_day_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data or ""
+    if not data.startswith("day:"):
+        return SELECT_DAY
+
+    try:
+        _, date_str = data.split(":", 1)
+        year, month, day = map(int, date_str.split("-"))
+    except Exception:
+        await query.edit_message_text("⚠️ Could not read that day. Please choose again.")
+        return SELECT_DAY
+
+    selected_date = datetime(year, month, day)
+    context.user_data["date"] = selected_date.strftime("%d/%m/%Y")
+
+    await query.edit_message_text(
+        f"📅 Selected: {context.user_data['date']}\n⏰ Now enter the time range (e.g. 14:00-15:00):"
+    )
+    return TIME
 
 # ----------------- Get Date -----------------
 
 
-async def get_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    date_input = update.message.text.strip()
+def _first_day_of_month(dt: datetime, add_months: int = 0) -> datetime:
+    """Return the first day of the month offset by add_months."""
+    year = dt.year + (dt.month - 1 + add_months) // 12
+    month = (dt.month - 1 + add_months) % 12 + 1
+    return datetime(year, month, 1, tzinfo=dt.tzinfo)
 
-    # Validate format using regex before parsing
-    if not re.match(r"^\d{1,2}/\d{1,2}(/?\d{2,4})?$", date_input):
-        await update.message.reply_text("❌ Please enter date in format DD/MM or DD/MM/YYYY.")
-        return DATE
 
-    # Add current year if user omits it
-    if len(date_input.split("/")) == 2:
-        date_input = f"{date_input}/{datetime.now().year}"
+def _build_month_keyboard(now_pp: datetime) -> InlineKeyboardMarkup:
+    """Show current and next month as inline buttons."""
+    months = []
+    for offset in (0, 1):
+        month_dt = _first_day_of_month(now_pp, offset)
+        label = month_dt.strftime("%B %Y")
+        months.append(InlineKeyboardButton(label, callback_data=f"month:{month_dt.strftime('%Y-%m')}"))
 
-    # Parse with DMY order
-    date_obj = dateparser.parse(date_input, settings={"DATE_ORDER": "DMY"})
-    if not date_obj:
-        await update.message.reply_text("❌ Invalid date. Try again (example: 25/10 or 25/10/2025).")
-        return DATE
+    keyboard = [months]
+    return InlineKeyboardMarkup(keyboard)
 
-    # Check if date is in the past (compare dates)
-    if date_obj.date() < datetime.now().date():
-        await update.message.reply_text("⚠️ The date you entered is in the past. Please choose a future date.")
-        return DATE
 
-    context.user_data["date"] = date_obj.strftime("%d/%m/%Y")
-    await update.message.reply_text("⏰ Great! Now enter the time range (e.g. 14:00-15:00):")
-    return TIME
+def _build_day_keyboard(year: int, month: int, tz: ZoneInfo) -> InlineKeyboardMarkup:
+    """Inline keyboard for available days; skips past days of current month."""
+    today = datetime.now(tz).date()
+    _, last_day = calendar.monthrange(year, month)
+
+    rows = []
+    row = []
+    for day in range(1, last_day + 1):
+        date_obj = datetime(year, month, day, tzinfo=tz).date()
+        if date_obj < today:
+            continue
+        row.append(InlineKeyboardButton(str(day), callback_data=f"day:{year}-{month:02d}-{day:02d}"))
+        if len(row) == 7:
+            rows.append(row)
+            row = []
+
+    if row:
+        rows.append(row)
+
+    rows.append([InlineKeyboardButton("🔙 Choose month", callback_data="month:choose")])
+    return InlineKeyboardMarkup(rows)
 
 # ----------------- Get Time & Save -----------------
 
@@ -787,7 +876,11 @@ def main():
     book_conv = ConversationHandler(
         entry_points=[CommandHandler("book", book)],
         states={
-            DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_date)],
+            SELECT_MONTH: [CallbackQueryHandler(handle_month_selection, pattern="^month:")],
+            SELECT_DAY: [
+                CallbackQueryHandler(handle_day_selection, pattern="^day:"),
+                CallbackQueryHandler(handle_month_selection, pattern="^month:"),
+            ],
             TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_time)],
         },
         fallbacks=fallback_list,
