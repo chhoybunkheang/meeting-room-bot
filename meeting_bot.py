@@ -9,7 +9,6 @@ from zoneinfo import ZoneInfo
 
 import dateparser
 import gspread
-import pytz
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 from telegram import (
@@ -76,7 +75,10 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds_json = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
+try:
+    creds_json = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
+except (TypeError, json.JSONDecodeError) as e:
+    raise ValueError(f"❌ GOOGLE_CREDENTIALS is missing or contains invalid JSON: {e}") from e
 creds = Credentials.from_service_account_info(creds_json, scopes=SCOPES)
 client = gspread.authorize(creds)
 sheet = client.open_by_url(SPREADSHEET_URL).sheet1
@@ -178,7 +180,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         admin = await context.bot.get_chat(ADMIN_ID)
         admin_name = admin.first_name
         admin_username = f"@{admin.username}" if admin.username else admin_name
-    except:
+    except Exception:
         admin_username = "the admin"
 
     await update.message.reply_text(
@@ -412,7 +414,8 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             print(f"⚠️ Could not send group message: {e}")
 
-# ----------------- Cancel flow -----------------
+        return ConversationHandler.END
+
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -502,7 +505,7 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ You don’t have any active meetings to end.")
         return
 
-    tz = pytz.timezone("Asia/Phnom_Penh")
+    tz = ZoneInfo("Asia/Phnom_Penh")
     now = datetime.now(tz)
 
     active_meeting = None
@@ -514,10 +517,10 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         start_str, end_str = [t.strip() for t in time_str.split("-")]
 
         try:
-            start_dt = tz.localize(datetime.strptime(
-                f"{date_str} {start_str}", "%d/%m/%Y %H:%M"))
-            end_dt = tz.localize(datetime.strptime(
-                f"{date_str} {end_str}", "%d/%m/%Y %H:%M"))
+            start_dt = datetime.strptime(
+                f"{date_str} {start_str}", "%d/%m/%Y %H:%M").replace(tzinfo=tz)
+            end_dt = datetime.strptime(
+                f"{date_str} {end_str}", "%d/%m/%Y %H:%M").replace(tzinfo=tz)
         except Exception as e:
             print(f"⚠️ Error parsing time: {e}")
             continue
@@ -558,6 +561,11 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    if user.id != ADMIN_ID:
+        await update.message.reply_text("🚫 You are not authorized to use this command.")
+        return
+
     try:
         spreadsheet = client.open_by_url(SPREADSHEET_URL)
         stats_sheet = spreadsheet.worksheet("UserStats")
@@ -588,7 +596,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         def sort_key_stats(item):
             try:
                 return datetime.strptime(item[1]["last_action"], "%d/%m/%Y %H:%M:%S")
-            except:
+            except Exception:
                 return datetime.min
 
         sorted_users = sorted(
@@ -674,13 +682,23 @@ async def receive_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Please send a valid document file.")
         return UPLOAD_DOC
 
+    # Sanitize filename to prevent path traversal
+    safe_name = os.path.basename(document.file_name or "")
+    if not safe_name:
+        await update.message.reply_text("⚠️ Invalid file name.")
+        return UPLOAD_DOC
+
     try:
         os.makedirs("docs", exist_ok=True)
-        file_path = os.path.join("docs", document.file_name)
+        docs_dir = os.path.realpath("docs")
+        file_path = os.path.realpath(os.path.join("docs", safe_name))
+        if os.path.commonpath([docs_dir, file_path]) != docs_dir:
+            await update.message.reply_text("⚠️ Invalid file name.")
+            return UPLOAD_DOC
         file = await document.get_file()
         await file.download_to_drive(file_path)
-        await update.message.reply_text(f"✅ File saved: {document.file_name}\nUsers can now access it with /docs.")
-        print(f"✅ Admin uploaded {document.file_name} to docs/")
+        await update.message.reply_text(f"✅ File saved: {safe_name}\nUsers can now access it with /docs.")
+        print(f"✅ Admin uploaded {safe_name} to docs/")
     except Exception as e:
         await update.message.reply_text("⚠️ Failed to save the file.")
         print(f"⚠️ Error saving file: {e}")
@@ -720,8 +738,18 @@ async def handle_docs_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not data.startswith("docs:"):
         return
 
-    filename = data.split("docs:", 1)[1]
-    file_path = os.path.join("docs", filename)
+    # Sanitize filename to prevent path traversal
+    raw_name = data.split("docs:", 1)[1]
+    filename = os.path.basename(raw_name)
+    if not filename:
+        await query.message.reply_text("⚠️ I couldn’t find that file. Try /docs again.")
+        return
+
+    docs_dir = os.path.realpath("docs")
+    file_path = os.path.realpath(os.path.join("docs", filename))
+    if os.path.commonpath([docs_dir, file_path]) != docs_dir:
+        await query.message.reply_text("⚠️ I couldn’t find that file. Try /docs again.")
+        return
 
     if not os.path.exists(file_path):
         await query.message.reply_text("⚠️ I couldn’t find that file. Try /docs again.")
@@ -751,7 +779,7 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
         context = update
         update = None
 
-    tz = pytz.timezone("Asia/Phnom_Penh")
+    tz = ZoneInfo("Asia/Phnom_Penh")
     now = datetime.now(tz)
     records = sheet.get_all_records()
 
@@ -767,7 +795,7 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
             start_time_str, end_time_str = time_str.split("-")
             meeting_end = datetime.strptime(
                 f"{date_str} {end_time_str.strip()}", "%d/%m/%Y %H:%M")
-            meeting_end = tz.localize(meeting_end)
+            meeting_end = meeting_end.replace(tzinfo=tz)
 
             if meeting_end < now:
                 removed.append(f"{date_str} | {time_str}")
