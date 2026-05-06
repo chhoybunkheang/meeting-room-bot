@@ -14,7 +14,7 @@ RUN apt-get update \
     fonts-freefont-ttf \
     fonts-noto-core \
     fonts-noto-cjk \
-    fonts-khmeros-core \
+    fonts-khmeros \
     && fc-cache -f -v \
     && rm -rf /var/lib/apt/lists/*
 
