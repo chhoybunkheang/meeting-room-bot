@@ -1,11 +1,11 @@
 services:
   - type: web
     name: meeting-room-bot
-    env: python
+    env: docker
     plan: free
     region: frankfurt
-    buildCommand: pip install -r requirements.txt
-    startCommand: python meeting_bot.py
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     autoDeploy: true
     envVars:
       - key: USE_WEBHOOK

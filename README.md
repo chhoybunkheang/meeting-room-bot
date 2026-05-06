@@ -14,6 +14,11 @@ Telegram bot for meeting room booking
 - Supported out of the box: image files (`.jpg`, `.jpeg`, `.png`, `.bmp`, `.gif`, `.webp`, `.tif`, `.tiff`) and text-like files (`.txt`, `.md`, `.csv`, `.log`).
 - Office files (`.docx`, `.xlsx`, `.pptx`, etc.) are supported when LibreOffice is installed on the server.
 
+### LibreOffice Deployment
+
+- This repository now includes a `Dockerfile` that installs LibreOffice for server-side Office to PDF conversion.
+- Railway and Render should be deployed using the Docker configuration in this repo so `soffice` is available at runtime.
+
 ## 🚀 Deployment on Railway
 
 ### Quick Setup
@@ -22,6 +27,7 @@ Telegram bot for meeting room booking
    - Go to [Railway](https://railway.app/)
    - Click "New Project" → "Deploy from GitHub repo"
    - Select your repository
+   - Railway will build using the included `Dockerfile`
 
 2. **Configure Environment Variables**
    
@@ -65,10 +71,16 @@ Telegram bot for meeting room booking
 
 - `Procfile`: Tells Railway how to start the bot
 - `railway.json`: Railway configuration
-- `nixpacks.toml`: Build configuration
+- `railway.toml`: Railway build/deploy configuration
+- `Dockerfile`: Installs Python dependencies and LibreOffice
 - `requirements.txt`: Python dependencies
 
 ### 🔧 Troubleshooting
+
+**Word to PDF not working?**
+- Check deployment logs for Docker build errors
+- Verify the service is using the `Dockerfile` build, not plain Python/Nixpacks
+- Confirm `soffice` is available inside the running container
 
 **Bot not responding?**
 - Check logs in Railway dashboard
