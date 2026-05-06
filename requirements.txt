@@ -9,4 +9,6 @@ apscheduler
 flask
 python-telegram-bot[job-queue]
 python-dotenv
+Pillow
+reportlab
 

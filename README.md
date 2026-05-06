@@ -1,6 +1,19 @@
 # meeting-room-bot
 Telegram bot for meeting room booking
 
+## Features
+
+- Meeting room booking and cancellation
+- Group schedule announcements
+- Admin document upload (/uploaddoc)
+- Document and image to PDF conversion (/topdf)
+
+### PDF Conversion (/topdf)
+
+- Send `/topdf` to the bot, then upload a document or image.
+- Supported out of the box: image files (`.jpg`, `.jpeg`, `.png`, `.bmp`, `.gif`, `.webp`, `.tif`, `.tiff`) and text-like files (`.txt`, `.md`, `.csv`, `.log`).
+- Office files (`.docx`, `.xlsx`, `.pptx`, etc.) are supported when LibreOffice is installed on the server.
+
 ## 🚀 Deployment on Railway
 
 ### Quick Setup

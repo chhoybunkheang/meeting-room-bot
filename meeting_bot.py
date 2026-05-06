@@ -3,6 +3,9 @@ import calendar
 import json
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 import warnings
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -11,6 +14,9 @@ import dateparser
 import gspread
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
+from PIL import Image
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 from telegram import (
     Bot,
     BotCommand,
@@ -62,6 +68,7 @@ ANNOUNCE_MESSAGE = 200
 
 # State for docs upload
 UPLOAD_DOC = 101
+CONVERT_TO_PDF = 300
 
 # Ensure docs folder exists
 os.makedirs("docs", exist_ok=True)
@@ -189,7 +196,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/book - Book the meeting room\n"
         "/cancel - Cancel your booking\n"
         "/end - End the active meeting\n"
-        "/docs - Download available documents\n\n"
+        "/docs - Download available documents\n"
+        "/topdf - Convert document/image to PDF\n\n"
         f"ℹ️ Created by {admin_username}"
     )
 
@@ -339,6 +347,109 @@ def _remember_booking_prompt(message, context: ContextTypes.DEFAULT_TYPE):
 def _clear_booking_prompt(context: ContextTypes.DEFAULT_TYPE):
     """Forget any stored booking prompt reference once the flow is complete."""
     context.user_data.pop("booking_prompt_message", None)
+
+
+def _normalize_pdf_source_name(original_name: str, fallback: str = "file") -> str:
+    """Sanitize an incoming filename and provide a safe fallback."""
+    name = os.path.basename(original_name or "").strip()
+    if not name:
+        name = fallback
+    return re.sub(r"[^A-Za-z0-9._-]", "_", name)
+
+
+def _convert_image_to_pdf(source_path: str, output_pdf_path: str):
+    """Convert a local image file to PDF (RGB)."""
+    with Image.open(source_path) as img:
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
+        img.save(output_pdf_path, "PDF", resolution=100.0)
+
+
+def _convert_text_to_pdf(source_path: str, output_pdf_path: str):
+    """Convert plain text-like files to a simple PDF layout."""
+    c = canvas.Canvas(output_pdf_path, pagesize=A4)
+    width, height = A4
+    y = height - 40
+    line_height = 14
+
+    with open(source_path, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            text = line.rstrip("\n")
+            if not text:
+                text = " "
+
+            chunks = [text[i:i + 100] for i in range(0, len(text), 100)] or [" "]
+            for chunk in chunks:
+                if y < 40:
+                    c.showPage()
+                    y = height - 40
+                c.drawString(40, y, chunk)
+                y -= line_height
+
+    c.save()
+
+
+def _try_convert_with_libreoffice(source_path: str, out_dir: str) -> str | None:
+    """Try converting office docs using LibreOffice if available."""
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice:
+        return None
+
+    subprocess.run(
+        [
+            soffice,
+            "--headless",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            out_dir,
+            source_path,
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    base_name = os.path.splitext(os.path.basename(source_path))[0]
+    candidate = os.path.join(out_dir, f"{base_name}.pdf")
+    if os.path.exists(candidate):
+        return candidate
+    return None
+
+
+def _convert_to_pdf_sync(source_path: str, source_name: str, mime_type: str | None, out_dir: str) -> tuple[str | None, str | None]:
+    """Convert supported files to PDF. Returns (pdf_path, error_message)."""
+    ext = os.path.splitext(source_name)[1].lower()
+    output_pdf = os.path.join(out_dir, f"{os.path.splitext(source_name)[0]}.pdf")
+
+    image_exts = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tif", ".tiff"}
+    text_exts = {".txt", ".md", ".csv", ".log"}
+    office_exts = {".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".odp"}
+
+    try:
+        if ext == ".pdf":
+            return source_path, None
+
+        if ext in image_exts or (mime_type and mime_type.startswith("image/")):
+            _convert_image_to_pdf(source_path, output_pdf)
+            return output_pdf, None
+
+        if ext in text_exts or (mime_type and mime_type.startswith("text/")):
+            _convert_text_to_pdf(source_path, output_pdf)
+            return output_pdf, None
+
+        if ext in office_exts:
+            converted = _try_convert_with_libreoffice(source_path, out_dir)
+            if converted:
+                return converted, None
+            return None, "Office conversion needs LibreOffice on the server."
+
+        return None, "Unsupported file type for PDF conversion."
+    except Exception as e:
+        return None, f"Conversion failed: {e}"
 
 
 async def _delete_booking_prompt(context: ContextTypes.DEFAULT_TYPE):
@@ -705,6 +816,70 @@ async def receive_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return ConversationHandler.END
 
+
+async def topdf_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    log_user_action(user, "/topdf")
+    await update.message.reply_text(
+        "📎 Send a document or image and I will convert it to PDF.\n"
+        "Supported: images (.jpg/.png/etc), text (.txt/.md/.csv), and Office files if LibreOffice is available on server.",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+    return CONVERT_TO_PDF
+
+
+async def receive_file_for_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
+    if not message:
+        return CONVERT_TO_PDF
+
+    telegram_file = None
+    source_name = None
+    mime_type = None
+
+    if message.document:
+        doc = message.document
+        telegram_file = await doc.get_file()
+        source_name = _normalize_pdf_source_name(doc.file_name or "document")
+        mime_type = doc.mime_type
+    elif message.photo:
+        photo = message.photo[-1]
+        telegram_file = await photo.get_file()
+        source_name = f"photo_{photo.file_unique_id}.jpg"
+        mime_type = "image/jpeg"
+    else:
+        await message.reply_text("⚠️ Please send a document or photo file.")
+        return CONVERT_TO_PDF
+
+    with tempfile.TemporaryDirectory(prefix="pdf_convert_") as temp_dir:
+        source_path = os.path.join(temp_dir, source_name)
+        await telegram_file.download_to_drive(source_path)
+
+        pdf_path, error = await asyncio.to_thread(
+            _convert_to_pdf_sync,
+            source_path,
+            source_name,
+            mime_type,
+            temp_dir,
+        )
+
+        if error:
+            await message.reply_text(f"⚠️ {error}")
+            return CONVERT_TO_PDF
+
+        if not pdf_path or not os.path.exists(pdf_path):
+            await message.reply_text("⚠️ Conversion failed. Please try another file.")
+            return CONVERT_TO_PDF
+
+        pdf_name = f"{os.path.splitext(source_name)[0]}.pdf"
+        with open(pdf_path, "rb") as f:
+            await message.reply_document(
+                document=InputFile(f, filename=pdf_name),
+                caption=f"✅ Converted to PDF: {pdf_name}",
+            )
+
+    return ConversationHandler.END
+
 # ----------------- User Download Docs (Inline Keyboard) -----------------
 
 
@@ -923,6 +1098,7 @@ def main():
         BotCommand("cancel", "Cancel booking"),
         BotCommand("end", "End the meeting"),
         BotCommand("docs", "Download documents"),
+        BotCommand("topdf", "Convert file to PDF"),
     ]
 
     admin_commands = user_commands + [
@@ -991,6 +1167,16 @@ def main():
         per_chat=True,
     )
 
+    topdf_conv = ConversationHandler(
+        entry_points=[CommandHandler("topdf", topdf_start)],
+        states={
+            CONVERT_TO_PDF: [MessageHandler(filters.Document.ALL | filters.PHOTO, receive_file_for_pdf)],
+        },
+        fallbacks=fallback_list,
+        per_user=True,
+        per_chat=True,
+    )
+
     # Register handlers
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("start", start))
@@ -1000,6 +1186,7 @@ def main():
     app.add_handler(announce_conv)
     app.add_handler(CommandHandler("clean", auto_cleanup))
     app.add_handler(upload_conv)
+    app.add_handler(topdf_conv)
     app.add_handler(CommandHandler("docs", docs_menu))
     app.add_handler(CallbackQueryHandler(handle_docs_button, pattern="^docs:"))
     app.add_handler(MessageHandler(
