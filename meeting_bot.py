@@ -861,7 +861,7 @@ async def receive_pdf_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["topdf_output_name"] = normalized_name
     await message.reply_text(
         f"✅ Output name set to: {normalized_name}\n"
-        "📎 Now send a document or image to convert.",
+        "📎 Now send an image or Word file (.doc/.docx) to convert.",
     )
     return CONVERT_TO_PDF
 
@@ -874,19 +874,36 @@ async def receive_file_for_pdf(update: Update, context: ContextTypes.DEFAULT_TYP
     telegram_file = None
     source_name = None
     mime_type = None
+    allowed_image_exts = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tif", ".tiff"}
+    allowed_word_exts = {".doc", ".docx"}
+    allowed_word_mimes = {
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
 
     if message.document:
         doc = message.document
-        telegram_file = await doc.get_file()
-        source_name = _normalize_pdf_source_name(doc.file_name or "document")
+        raw_name = doc.file_name or "document"
+        source_name = _normalize_pdf_source_name(raw_name)
+        ext = os.path.splitext(source_name)[1].lower()
         mime_type = doc.mime_type
+
+        is_image_file = ext in allowed_image_exts or (mime_type and mime_type.startswith("image/"))
+        is_word_file = ext in allowed_word_exts or (mime_type in allowed_word_mimes)
+        if not (is_image_file or is_word_file):
+            await message.reply_text(
+                "⚠️ Unsupported file type. Please upload an image file or a Word file (.doc/.docx) only."
+            )
+            return CONVERT_TO_PDF
+
+        telegram_file = await doc.get_file()
     elif message.photo:
         photo = message.photo[-1]
         telegram_file = await photo.get_file()
         source_name = f"photo_{photo.file_unique_id}.jpg"
         mime_type = "image/jpeg"
     else:
-        await message.reply_text("⚠️ Please send a document or photo file.")
+        await message.reply_text("⚠️ Please send an image or Word file (.doc/.docx).")
         return CONVERT_TO_PDF
 
     with tempfile.TemporaryDirectory(prefix="pdf_convert_") as temp_dir:
