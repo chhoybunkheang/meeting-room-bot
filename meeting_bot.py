@@ -68,7 +68,8 @@ ANNOUNCE_MESSAGE = 200
 
 # State for docs upload
 UPLOAD_DOC = 101
-CONVERT_TO_PDF = 300
+PDF_NAME_INPUT = 300
+CONVERT_TO_PDF = 301
 
 # Ensure docs folder exists
 os.makedirs("docs", exist_ok=True)
@@ -355,6 +356,19 @@ def _normalize_pdf_source_name(original_name: str, fallback: str = "file") -> st
     if not name:
         name = fallback
     return re.sub(r"[^A-Za-z0-9._-]", "_", name)
+
+
+def _normalize_output_pdf_name(raw_name: str) -> str | None:
+    """Normalize user-provided output PDF filename."""
+    base = _normalize_pdf_source_name(raw_name or "", fallback="")
+    if not base:
+        return None
+
+    # Keep only file stem from any extension the user typed.
+    stem = os.path.splitext(base)[0].strip("._-")
+    if not stem:
+        return None
+    return f"{stem}.pdf"
 
 
 def _convert_image_to_pdf(source_path: str, output_pdf_path: str):
@@ -821,9 +835,33 @@ async def topdf_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/topdf")
     await update.message.reply_text(
-        "📎 Send a document or image and I will convert it to PDF.\n"
-        "Supported: images (.jpg/.png/etc), text (.txt/.md/.csv), and Office files if LibreOffice is available on server.",
+        "📝 Please type the output PDF file name first (example: meeting_report).\n"
+        "I will add .pdf automatically.",
         reply_markup=ReplyKeyboardRemove(),
+    )
+    return PDF_NAME_INPUT
+
+
+async def receive_pdf_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
+    if not message:
+        return PDF_NAME_INPUT
+
+    if not message.text:
+        await message.reply_text("⚠️ Please type a valid file name.")
+        return PDF_NAME_INPUT
+
+    normalized_name = _normalize_output_pdf_name(message.text.strip())
+    if not normalized_name:
+        await message.reply_text(
+            "⚠️ Invalid file name. Use letters, numbers, dot, dash, or underscore only."
+        )
+        return PDF_NAME_INPUT
+
+    context.user_data["topdf_output_name"] = normalized_name
+    await message.reply_text(
+        f"✅ Output name set to: {normalized_name}\n"
+        "📎 Now send a document or image to convert.",
     )
     return CONVERT_TO_PDF
 
@@ -871,13 +909,14 @@ async def receive_file_for_pdf(update: Update, context: ContextTypes.DEFAULT_TYP
             await message.reply_text("⚠️ Conversion failed. Please try another file.")
             return CONVERT_TO_PDF
 
-        pdf_name = f"{os.path.splitext(source_name)[0]}.pdf"
+        pdf_name = context.user_data.get("topdf_output_name") or f"{os.path.splitext(source_name)[0]}.pdf"
         with open(pdf_path, "rb") as f:
             await message.reply_document(
                 document=InputFile(f, filename=pdf_name),
                 caption=f"✅ Converted to PDF: {pdf_name}",
             )
 
+    context.user_data.pop("topdf_output_name", None)
     return ConversationHandler.END
 
 # ----------------- User Download Docs (Inline Keyboard) -----------------
@@ -1170,6 +1209,7 @@ def main():
     topdf_conv = ConversationHandler(
         entry_points=[CommandHandler("topdf", topdf_start)],
         states={
+            PDF_NAME_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_pdf_name)],
             CONVERT_TO_PDF: [MessageHandler(filters.Document.ALL | filters.PHOTO, receive_file_for_pdf)],
         },
         fallbacks=fallback_list,
