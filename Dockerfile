@@ -6,7 +6,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libreoffice \
+    && apt-get install -y --no-install-recommends \
+    libreoffice \
+    fontconfig \
+    fonts-dejavu \
+    fonts-liberation \
+    fonts-freefont-ttf \
+    fonts-noto-core \
+    fonts-noto-cjk \
+    fonts-khmeros-core \
+    && fc-cache -f -v \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
