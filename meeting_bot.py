@@ -913,7 +913,6 @@ async def receive_file_for_pdf(update: Update, context: ContextTypes.DEFAULT_TYP
         with open(pdf_path, "rb") as f:
             await message.reply_document(
                 document=InputFile(f, filename=pdf_name),
-                caption=f"✅ Converted to PDF: {pdf_name}",
             )
 
     context.user_data.pop("topdf_output_name", None)
