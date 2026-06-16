@@ -1,6 +1,7 @@
 import asyncio
 import calendar
 import json
+import logging
 import os
 import re
 import shutil
@@ -14,6 +15,8 @@ import dateparser
 import gspread
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
+from tenacity import retry  # noqa: F401 — available for future use
+
 from PIL import Image
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -98,7 +101,122 @@ except gspread.exceptions.WorksheetNotFound:
         title="UserStats", rows="1000", cols="4")
     stats_sheet.append_row(["TelegramID", "Name", "Command", "DateTime"])
 
+# ===================== LOGGING =====================
+
+logging.basicConfig(
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
+
+# ===================== SHEETS RETRY HELPER =====================
+
+# Retry on transient Google API errors (503, 429, connection issues)
+_SHEETS_RETRY_EXCEPTIONS = (
+    gspread.exceptions.APIError,
+    gspread.exceptions.GSpreadException,
+    Exception,  # catches requests/httpx transport errors
+)
+
+SHEETS_TIMEOUT = 30  # seconds per individual gspread call
+
+
+def _is_transient_sheets_error(exc: BaseException) -> bool:
+    """Return True for errors that are worth retrying (503, 429, network)."""
+    if isinstance(exc, gspread.exceptions.APIError):
+        code = getattr(exc, "response", None)
+        if code is not None:
+            status = getattr(code, "status_code", None)
+            if status in (429, 500, 502, 503, 504):
+                return True
+        # Also check the string representation for the status code
+        msg = str(exc)
+        if any(s in msg for s in ("503", "429", "500", "502", "504")):
+            return True
+        return False
+    # Retry on low-level network/transport errors
+    import requests
+    import socket
+    if isinstance(exc, (requests.exceptions.ConnectionError,
+                        requests.exceptions.Timeout,
+                        socket.timeout,
+                        ConnectionError,
+                        TimeoutError)):
+        return True
+    return False
+
+
+async def run_sheets_op(func, *args, **kwargs):
+    """
+    Run a synchronous gspread call in a thread with timeout and exponential
+    backoff retry for transient failures (503, 429, network errors).
+
+    Raises SheetUnavailableError on permanent failure so callers can show
+    a user-friendly message instead of hanging.
+    """
+    attempt = 0
+    max_attempts = 4
+    base_delay = 2  # seconds
+
+    while attempt < max_attempts:
+        attempt += 1
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(func, *args, **kwargs),
+                timeout=SHEETS_TIMEOUT,
+            )
+            return result
+        except asyncio.TimeoutError:
+            logger.error(
+                "Google Sheets call timed out after %ds (attempt %d/%d): %s",
+                SHEETS_TIMEOUT, attempt, max_attempts, func.__name__,
+            )
+            if attempt >= max_attempts:
+                raise SheetUnavailableError(
+                    f"Google Sheets did not respond within {SHEETS_TIMEOUT}s after "
+                    f"{max_attempts} attempts."
+                )
+        except gspread.exceptions.APIError as exc:
+            if _is_transient_sheets_error(exc):
+                logger.warning(
+                    "Transient Sheets API error (attempt %d/%d): %s",
+                    attempt, max_attempts, exc,
+                )
+                if attempt >= max_attempts:
+                    raise SheetUnavailableError(
+                        f"Google Sheets API unavailable after {max_attempts} attempts: {exc}"
+                    ) from exc
+            else:
+                # Non-transient API error — don't retry
+                logger.error("Non-transient Sheets API error: %s", exc)
+                raise SheetUnavailableError(
+                    f"Google Sheets API error: {exc}"
+                ) from exc
+        except Exception as exc:
+            if _is_transient_sheets_error(exc):
+                logger.warning(
+                    "Transient Sheets error (attempt %d/%d): %s",
+                    attempt, max_attempts, exc,
+                )
+                if attempt >= max_attempts:
+                    raise SheetUnavailableError(
+                        f"Google Sheets unavailable after {max_attempts} attempts: {exc}"
+                    ) from exc
+            else:
+                raise
+
+        # Exponential backoff before next attempt
+        delay = base_delay * (2 ** (attempt - 1))
+        logger.info("Retrying Sheets call in %ds...", delay)
+        await asyncio.sleep(delay)
+
+
+class SheetUnavailableError(Exception):
+    """Raised when Google Sheets is unreachable after all retries."""
+
+
 # ===================== HELPERS =====================
+
 
 
 def sort_key(row):
@@ -136,17 +254,21 @@ def is_overlapping(existing_start, existing_end, new_start, new_end):
     return not (new_end <= existing_start or new_start >= existing_end)
 
 
-def save_booking(date_str, time_str, name, telegram_id):
+async def save_booking(date_str, time_str, name, telegram_id):
     """Save a booking only if the time range does not overlap with existing ones."""
     try:
         new_start_str, new_end_str = time_str.split("-")
         new_start = time_to_minutes(new_start_str.strip())
         new_end = time_to_minutes(new_end_str.strip())
     except ValueError:
-        # Invalid time format
         return "invalid"
 
-    records = sheet.get_all_records()
+    try:
+        records = await run_sheets_op(sheet.get_all_records)
+    except SheetUnavailableError:
+        logger.error("save_booking: Sheets unavailable when fetching records")
+        return "unavailable"
+
     for row in records:
         if row.get("Date") == date_str:
             try:
@@ -160,21 +282,37 @@ def save_booking(date_str, time_str, name, telegram_id):
                 continue
 
     # If no overlap → save
-    sheet.append_row([date_str, time_str, name, str(telegram_id)])
+    try:
+        await run_sheets_op(sheet.append_row, [date_str, time_str, name, str(telegram_id)])
+    except SheetUnavailableError:
+        logger.error("save_booking: Sheets unavailable when appending row")
+        return "unavailable"
+
     return "success"
 
 
-def cancel_booking(telegram_id, date_str, time_str):
-    records = sheet.get_all_records()
+async def cancel_booking(telegram_id, date_str, time_str):
+    try:
+        records = await run_sheets_op(sheet.get_all_records)
+    except SheetUnavailableError:
+        logger.error("cancel_booking: Sheets unavailable when fetching records")
+        return "unavailable"
+
     for i, row in enumerate(records, start=2):
         if (
             row.get("TelegramID") == str(telegram_id)
             and row.get("Date") == date_str
             and row.get("Time") == time_str
         ):
-            sheet.delete_rows(i)
+            try:
+                await run_sheets_op(sheet.delete_rows, i)
+            except SheetUnavailableError:
+                logger.error("cancel_booking: Sheets unavailable when deleting row")
+                return "unavailable"
             return True
     return False
+
+
 
 # ===================== BOT COMMANDS =====================
 
@@ -506,9 +644,16 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ End time must be later than start time.")
         return TIME
 
-    result = save_booking(date_str, time_input, user.first_name, user.id)
+    result = await save_booking(date_str, time_input, user.first_name, user.id)
 
-    if result == "overlap":
+    if result == "unavailable":
+        logger.error("get_time: Google Sheets unavailable for user %s", user.id)
+        await update.message.reply_text(
+            "⚠️ Google Sheets is currently unavailable. Your booking could not be saved.\n"
+            "Please try again in a few minutes."
+        )
+        return TIME
+    elif result == "overlap":
         await update.message.reply_text("⚠️ That time overlaps with another booking. Please choose another slot.")
         return TIME
     elif result == "invalid":
@@ -521,7 +666,7 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Announce to group with sorted schedule
         try:
-            records = sheet.get_all_records()
+            records = await run_sheets_op(sheet.get_all_records)
             records.sort(key=sort_key)
 
             message = (
@@ -535,18 +680,28 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
 
             await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode="Markdown")
-            print("✅ Group message with sorted schedule sent.")
+            logger.info("Group message with sorted schedule sent.")
+        except SheetUnavailableError as e:
+            logger.error("get_time: Could not fetch schedule for group announcement: %s", e)
         except Exception as e:
-            print(f"⚠️ Could not send group message: {e}")
+            logger.warning("get_time: Could not send group message: %s", e)
 
         return ConversationHandler.END
-
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/cancel")
-    records = sheet.get_all_records()
+
+    try:
+        records = await run_sheets_op(sheet.get_all_records)
+    except SheetUnavailableError as e:
+        logger.error("cancel: Sheets unavailable: %s", e)
+        await update.message.reply_text(
+            "⚠️ Google Sheets is currently unavailable. Cannot retrieve your bookings.\n"
+            "Please try again in a few minutes."
+        )
+        return ConversationHandler.END
 
     user_bookings = [
         (i + 2, row) for i, row in enumerate(records)
@@ -554,7 +709,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     if not user_bookings:
-        await update.message.reply_text("❌ You don’t have any bookings to cancel.")
+        await update.message.reply_text("❌ You don't have any bookings to cancel.")
         return ConversationHandler.END
 
     message = "🗓 *Your Bookings:*\n\n"
@@ -586,19 +741,32 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
     row_index, booking = user_bookings[choice - 1]
     canceled_date = booking["Date"]
     canceled_time = booking["Time"]
-    sheet.delete_rows(row_index)
+
+    try:
+        await run_sheets_op(sheet.delete_rows, row_index)
+    except SheetUnavailableError as e:
+        logger.error("delete_booking_by_number: Sheets unavailable when deleting row: %s", e)
+        await update.message.reply_text(
+            "⚠️ Google Sheets is currently unavailable. Your booking could not be cancelled.\n"
+            "Please try again in a few minutes."
+        )
+        return ConversationHandler.END
 
     await update.message.reply_text(f"✅ Canceled booking on {canceled_date} at {canceled_time}.")
 
     # Build updated schedule message
-    records = sheet.get_all_records()
-    if records:
-        records.sort(key=sort_key)
-        message = "📋 *Updated Schedule:*\n"
-        for row in records:
-            message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
-    else:
-        message = "📋 No bookings left."
+    try:
+        records = await run_sheets_op(sheet.get_all_records)
+        if records:
+            records.sort(key=sort_key)
+            message = "📋 *Updated Schedule:*\n"
+            for row in records:
+                message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
+        else:
+            message = "📋 No bookings left."
+    except SheetUnavailableError as e:
+        logger.error("delete_booking_by_number: Sheets unavailable when fetching updated records: %s", e)
+        message = "📋 (Schedule unavailable — Google Sheets is temporarily unreachable.)"
 
     announcement = (
         f"❌ {user.first_name} *CANCEL* the booking:\n"
@@ -609,9 +777,11 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
     try:
         await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=announcement, parse_mode="Markdown")
     except Exception as e:
-        print(f"⚠️ Could not send group message: {e}")
+        logger.warning("delete_booking_by_number: Could not send group message: %s", e)
 
     return ConversationHandler.END
+
+
 
 # ----------------- End meeting -----------------
 
@@ -620,14 +790,23 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_action(user, "/end")
 
-    records = sheet.get_all_records()
+    try:
+        records = await run_sheets_op(sheet.get_all_records)
+    except SheetUnavailableError as e:
+        logger.error("end_meeting: Sheets unavailable: %s", e)
+        await update.message.reply_text(
+            "⚠️ Google Sheets is currently unavailable. Cannot check your meetings.\n"
+            "Please try again in a few minutes."
+        )
+        return
+
     user_bookings = [
         (i + 2, row) for i, row in enumerate(records)
         if str(row.get("TelegramID")) == str(user.id)
     ]
 
     if not user_bookings:
-        await update.message.reply_text("❌ You don’t have any active meetings to end.")
+        await update.message.reply_text("❌ You don't have any active meetings to end.")
         return
 
     tz = ZoneInfo("Asia/Phnom_Penh")
@@ -647,7 +826,7 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
             end_dt = datetime.strptime(
                 f"{date_str} {end_str}", "%d/%m/%Y %H:%M").replace(tzinfo=tz)
         except Exception as e:
-            print(f"⚠️ Error parsing time: {e}")
+            logger.warning("end_meeting: Error parsing time: %s", e)
             continue
 
         if start_dt <= now <= end_dt + timedelta(minutes=30):
@@ -657,12 +836,21 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not active_meeting:
         await update.message.reply_text(
-            "⏰ It’s not meeting time now or your meeting ended too long ago.\n"
+            "⏰ It's not meeting time now or your meeting ended too long ago.\n"
             "You can only end meetings during or within 30 minutes after the scheduled time."
         )
         return
 
-    sheet.delete_rows(active_row_index)
+    try:
+        await run_sheets_op(sheet.delete_rows, active_row_index)
+    except SheetUnavailableError as e:
+        logger.error("end_meeting: Sheets unavailable when deleting row: %s", e)
+        await update.message.reply_text(
+            "⚠️ Google Sheets is currently unavailable. Could not end the meeting.\n"
+            "Please try again in a few minutes."
+        )
+        return
+
     ended_date = active_meeting["Date"]
     ended_time = active_meeting["Time"]
 
@@ -676,11 +864,12 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode="Markdown")
         await update.message.reply_text("✅ Meeting ended and announced to the group.")
-        print(
-            f"✅ Meeting ended for {user.first_name}: {ended_date} {ended_time}")
+        logger.info("Meeting ended for %s: %s %s", user.first_name, ended_date, ended_time)
     except Exception as e:
-        print(f"⚠️ Could not send group message: {e}")
+        logger.warning("end_meeting: Could not send group message: %s", e)
         await update.message.reply_text("⚠️ Meeting ended but could not announce to group.")
+
+
 
 # ----------------- Stats -----------------
 
@@ -694,7 +883,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         spreadsheet = client.open_by_url(SPREADSHEET_URL)
         stats_sheet = spreadsheet.worksheet("UserStats")
-        records = stats_sheet.get_all_records()
+        records = await run_sheets_op(stats_sheet.get_all_records)
 
         if not records:
             await update.message.reply_text("📊 No user activity data yet.")
@@ -740,11 +929,67 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(message, parse_mode="Markdown")
 
+    except SheetUnavailableError as e:
+        logger.error("stats: Sheets unavailable: %s", e)
+        await update.message.reply_text(
+            "⚠️ Google Sheets is currently unavailable. Cannot retrieve stats.\n"
+            "Please try again in a few minutes."
+        )
     except Exception as e:
-        print(f"⚠️ Error generating stats: {e}")
+        logger.error("stats: Unexpected error: %s", e)
         await update.message.reply_text("⚠️ Could not retrieve stats.")
 
+
+# ----------------- Health Check (admin) -----------------
+
+
+async def health(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command to verify Google Sheets connectivity."""
+    user = update.message.from_user
+    if user.id != ADMIN_ID:
+        await update.message.reply_text("🚫 You are not authorized to use this command.")
+        return
+
+    await update.message.reply_text("🔍 Checking Google Sheets connectivity...")
+
+    tz = ZoneInfo("Asia/Phnom_Penh")
+    now_str = datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S")
+
+    try:
+        start = datetime.now(tz)
+        records = await run_sheets_op(sheet.get_all_records)
+        elapsed = (datetime.now(tz) - start).total_seconds()
+
+        booking_count = len(records)
+        await update.message.reply_text(
+            f"✅ *Google Sheets: OK*\n\n"
+            f"📋 Active bookings: {booking_count}\n"
+            f"⏱ Response time: {elapsed:.2f}s\n"
+            f"🕒 Checked at: {now_str}",
+            parse_mode="Markdown"
+        )
+        logger.info("Health check passed: %d bookings, %.2fs response", booking_count, elapsed)
+
+    except SheetUnavailableError as e:
+        logger.error("Health check failed: %s", e)
+        await update.message.reply_text(
+            f"❌ *Google Sheets: UNAVAILABLE*\n\n"
+            f"Error: {e}\n"
+            f"🕒 Checked at: {now_str}\n\n"
+            f"The bot will retry automatically with exponential backoff.",
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.error("Health check unexpected error: %s", e)
+        await update.message.reply_text(
+            f"⚠️ *Health check error*\n\nUnexpected error: {e}",
+            parse_mode="Markdown"
+        )
+
+
 # ----------------- Announce (admin) -----------------
+
+
 
 
 async def announce(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -935,6 +1180,124 @@ async def receive_file_for_pdf(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data.pop("topdf_output_name", None)
     return ConversationHandler.END
 
+
+
+async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE = None):
+    """
+    Works both when called manually (update + context) and when called by JobQueue
+    (first arg will be the context object).
+    """
+    # Normalize args: if called by JobQueue the first positional arg will be context
+    if context is None and update is not None and not hasattr(update, "message"):
+        context = update
+        update = None
+
+    tz = ZoneInfo("Asia/Phnom_Penh")
+    now = datetime.now(tz)
+
+    try:
+        records = await run_sheets_op(sheet.get_all_records)
+    except SheetUnavailableError as e:
+        logger.error("auto_cleanup: Sheets unavailable when fetching records: %s", e)
+        if update and getattr(update, "message", None):
+            await update.message.reply_text(
+                "⚠️ Google Sheets is currently unavailable. Cleanup could not run.\n"
+                "Please try again in a few minutes."
+            )
+        elif context:
+            await context.bot.send_message(
+                chat_id=GROUP_CHAT_ID,
+                text="⚠️ Scheduled cleanup failed — Google Sheets is temporarily unavailable.",
+                parse_mode="Markdown"
+            )
+        return
+
+    removed = []
+    updated_records = []
+
+    for row in records:
+        try:
+            date_str = row["Date"]
+            time_str = row["Time"]
+
+            start_time_str, end_time_str = time_str.split("-")
+            meeting_end = datetime.strptime(
+                f"{date_str} {end_time_str.strip()}", "%d/%m/%Y %H:%M")
+            meeting_end = meeting_end.replace(tzinfo=tz)
+
+            if meeting_end < now:
+                removed.append(f"{date_str} | {time_str}")
+            else:
+                updated_records.append(row)
+        except Exception as e:
+            logger.warning("auto_cleanup: Error parsing record: %s", e)
+
+    if removed:
+        try:
+            headers = ["Date", "Time", "Name", "TelegramID"]
+            new_data = [headers]
+            for r in updated_records:
+                new_data.append([
+                    r.get("Date", ""),
+                    r.get("Time", ""),
+                    r.get("Name", ""),
+                    r.get("TelegramID", "")
+                ])
+
+            def _rewrite_sheet():
+                sheet.clear()
+                sheet.update(new_data, "A1")
+
+            await run_sheets_op(_rewrite_sheet)
+            logger.info("Sheet successfully rewritten with updated records.")
+
+            message = "🧹 *Expired Schedule:*\n"
+            for r in removed:
+                message += f"• {r}\n"
+
+            if updated_records:
+                updated_records.sort(key=sort_key)
+                message += "\n📋 *Updated Schedule:*\n"
+                for row in updated_records:
+                    message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
+            else:
+                message += "\n✅ No meetings left."
+
+            if context:
+                await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode="Markdown")
+
+            if update and getattr(update, "message", None):
+                await update.message.reply_text("✅ Cleanup completed and group updated!")
+
+        except SheetUnavailableError as e:
+            logger.error("auto_cleanup: Sheets unavailable when rewriting sheet: %s", e)
+            if update and getattr(update, "message", None):
+                await update.message.reply_text(
+                    "⚠️ Google Sheets is currently unavailable. Cleanup could not complete.\n"
+                    "Please try again in a few minutes."
+                )
+            elif context:
+                await context.bot.send_message(
+                    chat_id=GROUP_CHAT_ID,
+                    text="⚠️ Cleanup failed — Google Sheets is temporarily unavailable.",
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            logger.error("auto_cleanup: Error rewriting sheet: %s", e)
+            if update and getattr(update, "message", None):
+                await update.message.reply_text("⚠️ Cleanup failed due to a sheet update error.")
+            elif context:
+                await context.bot.send_message(
+                    chat_id=GROUP_CHAT_ID,
+                    text="⚠️ Cleanup failed due to a sheet update error.",
+                    parse_mode="Markdown"
+                )
+    else:
+        logger.info("No expired meetings found during cleanup.")
+        if update and getattr(update, "message", None):
+            await update.message.reply_text("✨ There are no expired bookings to clean up.")
+
+
 # ----------------- User Download Docs (Inline Keyboard) -----------------
 
 
@@ -996,93 +1359,6 @@ async def handle_docs_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.message.reply_text("⚠️ Failed to send the document.")
         print(f"⚠️ Error sending document: {e}")
 
-# ----------------- Auto Cleanup -----------------
-
-
-async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE = None):
-    """
-    Works both when called manually (update + context) and when called by JobQueue
-    (first arg will be the context object).
-    """
-    # Normalize args: if called by JobQueue the first positional arg will be context
-    if context is None and update is not None and not hasattr(update, "message"):
-        context = update
-        update = None
-
-    tz = ZoneInfo("Asia/Phnom_Penh")
-    now = datetime.now(tz)
-    records = sheet.get_all_records()
-
-    removed = []
-    updated_records = []
-
-    for row in records:
-        try:
-            date_str = row["Date"]
-            time_str = row["Time"]
-            name = row["Name"]
-
-            start_time_str, end_time_str = time_str.split("-")
-            meeting_end = datetime.strptime(
-                f"{date_str} {end_time_str.strip()}", "%d/%m/%Y %H:%M")
-            meeting_end = meeting_end.replace(tzinfo=tz)
-
-            if meeting_end < now:
-                removed.append(f"{date_str} | {time_str}")
-            else:
-                updated_records.append(row)
-        except Exception as e:
-            print(f"⚠️ Error parsing record: {e}")
-
-    if removed:
-        try:
-            headers = ["Date", "Time", "Name", "TelegramID"]
-            sheet.clear()
-
-            new_data = [headers]
-            for r in updated_records:
-                new_data.append([
-                    r.get("Date", ""),
-                    r.get("Time", ""),
-                    r.get("Name", ""),
-                    r.get("TelegramID", "")
-                ])
-
-            sheet.update(new_data, "A1")
-            print("✅ Sheet successfully rewritten with updated records.")
-
-            message = "🧹 *Expired Schedule:*\n"
-            for r in removed:
-                message += f"• {r}\n"
-
-            if updated_records:
-                updated_records.sort(key=sort_key)
-                message += "\n📋 *Updated Schedule:*\n"
-                for row in updated_records:
-                    message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
-            else:
-                message += "\n✅ No meetings left."
-
-            if context:
-                await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode="Markdown")
-
-            if update and getattr(update, "message", None):
-                await update.message.reply_text("✅ Cleanup completed and group updated!")
-
-        except Exception as e:
-            print(f"⚠️ Error rewriting sheet: {e}")
-            if update and getattr(update, "message", None):
-                await update.message.reply_text("⚠️ Cleanup failed due to a sheet update error.")
-            elif context:
-                await context.bot.send_message(
-                    chat_id=GROUP_CHAT_ID,
-                    text="⚠️ Cleanup failed due to a sheet update error.",
-                    parse_mode="Markdown"
-                )
-    else:
-        print("✅ No expired meetings found during cleanup.")
-        if update and getattr(update, "message", None):
-            await update.message.reply_text("✨ There are no expired bookings to clean up.")
 
 # ----------------- Webhook utils & admin notify -----------------
 
@@ -1161,6 +1437,7 @@ def main():
         BotCommand("stats", "Statistics"),
         BotCommand("clean", "Clean up expired"),
         BotCommand("uploaddoc", "Upload file"),
+        BotCommand("health", "Check Google Sheets status"),
     ]
 
     # Set commands with proper scopes
@@ -1191,6 +1468,7 @@ def main():
         per_chat=True,
         per_user=True,
     )
+
 
     cancel_conv = ConversationHandler(
         entry_points=[CommandHandler("cancel", cancel)],
@@ -1232,9 +1510,9 @@ def main():
         per_user=True,
         per_chat=True,
     )
-
     # Register handlers
     app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("health", health))
     app.add_handler(CommandHandler("start", start))
     app.add_handler(book_conv)
     app.add_handler(cancel_conv)
