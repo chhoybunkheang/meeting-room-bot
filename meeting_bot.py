@@ -1011,7 +1011,11 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
 
     tz = ZoneInfo("Asia/Phnom_Penh")
     now = datetime.now(tz)
-    records = sheet.get_all_records()
+    try:
+        records = sheet.get_all_records()
+    except Exception as e:
+        print(f"⚠️ auto_cleanup: could not fetch sheet records: {e}")
+        return
 
     removed = []
     updated_records = []
