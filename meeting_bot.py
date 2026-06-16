@@ -113,13 +113,13 @@ def sort_key(row):
         return (datetime.max, datetime.max)
 
 
-def log_user_action(user, command):
+async def log_user_action(user, command):
     """Log each user command to the 'UserStats' sheet (Phnom Penh time)."""
     try:
         now = datetime.now(ZoneInfo("Asia/Phnom_Penh"))
         now_str = now.strftime("%d/%m/%Y %H:%M:%S")
-        stats_sheet.append_row(
-            [str(user.id), user.first_name, command, now_str])
+        await asyncio.to_thread(
+            stats_sheet.append_row, [str(user.id), user.first_name, command, now_str])
         print(f"✅ Logged {command} by {user.first_name} at {now_str}")
     except Exception as e:
         print(f"⚠️ Could not log action: {e}")
@@ -136,7 +136,7 @@ def is_overlapping(existing_start, existing_end, new_start, new_end):
     return not (new_end <= existing_start or new_start >= existing_end)
 
 
-def save_booking(date_str, time_str, name, telegram_id):
+async def save_booking(date_str, time_str, name, telegram_id):
     """Save a booking only if the time range does not overlap with existing ones."""
     try:
         new_start_str, new_end_str = time_str.split("-")
@@ -146,7 +146,7 @@ def save_booking(date_str, time_str, name, telegram_id):
         # Invalid time format
         return "invalid"
 
-    records = sheet.get_all_records()
+    records = await asyncio.to_thread(sheet.get_all_records)
     for row in records:
         if row.get("Date") == date_str:
             try:
@@ -160,19 +160,19 @@ def save_booking(date_str, time_str, name, telegram_id):
                 continue
 
     # If no overlap → save
-    sheet.append_row([date_str, time_str, name, str(telegram_id)])
+    await asyncio.to_thread(sheet.append_row, [date_str, time_str, name, str(telegram_id)])
     return "success"
 
 
-def cancel_booking(telegram_id, date_str, time_str):
-    records = sheet.get_all_records()
+async def cancel_booking(telegram_id, date_str, time_str):
+    records = await asyncio.to_thread(sheet.get_all_records)
     for i, row in enumerate(records, start=2):
         if (
             row.get("TelegramID") == str(telegram_id)
             and row.get("Date") == date_str
             and row.get("Time") == time_str
         ):
-            sheet.delete_rows(i)
+            await asyncio.to_thread(sheet.delete_rows, i)
             return True
     return False
 
@@ -181,7 +181,7 @@ def cancel_booking(telegram_id, date_str, time_str):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    log_user_action(user, "/start")
+    await log_user_action(user, "/start")
 
     # Get admin info
     try:
@@ -205,7 +205,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    log_user_action(user, "/book")
+    await log_user_action(user, "/book")
     tz = ZoneInfo("Asia/Phnom_Penh")
     now_pp = datetime.now(tz)
     keyboard = _build_month_keyboard(now_pp)
@@ -506,7 +506,7 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ End time must be later than start time.")
         return TIME
 
-    result = save_booking(date_str, time_input, user.first_name, user.id)
+    result = await save_booking(date_str, time_input, user.first_name, user.id)
 
     if result == "overlap":
         await update.message.reply_text("⚠️ That time overlaps with another booking. Please choose another slot.")
@@ -521,7 +521,7 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Announce to group with sorted schedule
         try:
-            records = sheet.get_all_records()
+            records = await asyncio.to_thread(sheet.get_all_records)
             records.sort(key=sort_key)
 
             message = (
@@ -545,8 +545,8 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    log_user_action(user, "/cancel")
-    records = sheet.get_all_records()
+    await log_user_action(user, "/cancel")
+    records = await asyncio.to_thread(sheet.get_all_records)
 
     user_bookings = [
         (i + 2, row) for i, row in enumerate(records)
@@ -586,12 +586,12 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
     row_index, booking = user_bookings[choice - 1]
     canceled_date = booking["Date"]
     canceled_time = booking["Time"]
-    sheet.delete_rows(row_index)
+    await asyncio.to_thread(sheet.delete_rows, row_index)
 
     await update.message.reply_text(f"✅ Canceled booking on {canceled_date} at {canceled_time}.")
 
     # Build updated schedule message
-    records = sheet.get_all_records()
+    records = await asyncio.to_thread(sheet.get_all_records)
     if records:
         records.sort(key=sort_key)
         message = "📋 *Updated Schedule:*\n"
@@ -618,9 +618,9 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
 
 async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    log_user_action(user, "/end")
+    await log_user_action(user, "/end")
 
-    records = sheet.get_all_records()
+    records = await asyncio.to_thread(sheet.get_all_records)
     user_bookings = [
         (i + 2, row) for i, row in enumerate(records)
         if str(row.get("TelegramID")) == str(user.id)
@@ -662,7 +662,7 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    sheet.delete_rows(active_row_index)
+    await asyncio.to_thread(sheet.delete_rows, active_row_index)
     ended_date = active_meeting["Date"]
     ended_time = active_meeting["Time"]
 
@@ -694,7 +694,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         spreadsheet = client.open_by_url(SPREADSHEET_URL)
         stats_sheet = spreadsheet.worksheet("UserStats")
-        records = stats_sheet.get_all_records()
+        records = await asyncio.to_thread(stats_sheet.get_all_records)
 
         if not records:
             await update.message.reply_text("📊 No user activity data yet.")
@@ -833,7 +833,7 @@ async def receive_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def topdf_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    log_user_action(user, "/topdf")
+    await log_user_action(user, "/topdf")
     await update.message.reply_text(
         "📝 Please type the output PDF file name first (example: meeting_report).\n"
         "I will add .pdf automatically.",
@@ -940,7 +940,7 @@ async def receive_file_for_pdf(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def docs_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    log_user_action(user, "/docs")
+    await log_user_action(user, "/docs")
 
     try:
         files = [f for f in os.listdir("docs") if f != ".keep"]
@@ -1041,7 +1041,7 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
     if removed:
         try:
             headers = ["Date", "Time", "Name", "TelegramID"]
-            sheet.clear()
+            await asyncio.to_thread(sheet.clear)
 
             new_data = [headers]
             for r in updated_records:
@@ -1052,7 +1052,7 @@ async def auto_cleanup(update: Update = None, context: ContextTypes.DEFAULT_TYPE
                     r.get("TelegramID", "")
                 ])
 
-            sheet.update(new_data, "A1")
+            await asyncio.to_thread(sheet.update, new_data, "A1")
             print("✅ Sheet successfully rewritten with updated records.")
 
             message = "🧹 *Expired Schedule:*\n"
