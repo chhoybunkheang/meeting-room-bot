@@ -747,18 +747,50 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sorted_users = sorted(
             summary.items(), key=sort_key_stats, reverse=True)
 
+        def escape_md(text: str) -> str:
+            """Escape special MarkdownV1 characters in dynamic text."""
+            for ch in ["_", "*", "`", "["]:
+                text = text.replace(ch, f"\\{ch}")
+            return text
+
         message = "📊 *All User Activity Summary:*\n\n"
         for name, info in sorted_users:
             actions_text = ", ".join(
-                [f"{cmd}({count})" for cmd, count in info["actions"].items()])
+                [f"{escape_md(cmd)}({count})" for cmd, count in info["actions"].items()])
             message += (
-                f"👤 *{name}*\n"
+                f"👤 *{escape_md(name)}*\n"
                 f"🕒 Last: {info['last_action']}\n"
                 f"📈 Total: {info['total']}\n"
                 f"📝 Actions: {actions_text}\n\n"
             )
 
-        await update.message.reply_text(message, parse_mode="Markdown")
+        # Split message if it exceeds Telegram's 4096-char limit
+        max_len = 4096
+        if len(message) <= max_len:
+            await update.message.reply_text(message, parse_mode="Markdown")
+        else:
+            chunks = []
+            current = "📊 *All User Activity Summary (continued):*\n\n"
+            for name, info in sorted_users:
+                actions_text = ", ".join(
+                    [f"{escape_md(cmd)}({count})" for cmd, count in info["actions"].items()])
+                block = (
+                    f"👤 *{escape_md(name)}*\n"
+                    f"🕒 Last: {info['last_action']}\n"
+                    f"📈 Total: {info['total']}\n"
+                    f"📝 Actions: {actions_text}\n\n"
+                )
+                if len(current) + len(block) > max_len:
+                    chunks.append(current)
+                    current = "📊 *All User Activity Summary (continued):*\n\n" + block
+                else:
+                    current += block
+            if current.strip():
+                chunks.append(current)
+            # First chunk uses original header
+            chunks[0] = "📊 *All User Activity Summary:*\n\n" + chunks[0].split("\n\n", 1)[-1]
+            for chunk in chunks:
+                await update.message.reply_text(chunk, parse_mode="Markdown")
 
     except Exception as e:
         print(f"⚠️ Error generating stats: {e}")
