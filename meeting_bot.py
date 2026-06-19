@@ -617,8 +617,8 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
     ])
 
     announcement = (
-        f"🗑️ *Booking Cancelled:*\n\n"
-        f"{message}"
+        f"{message}\n"
+        f"🗑️ *Booking Cancelled:*"
     )
 
     try:
