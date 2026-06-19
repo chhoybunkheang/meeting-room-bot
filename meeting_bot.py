@@ -601,7 +601,7 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
         message = "📋 No bookings left."
 
     announcement = (
-        f"❌ {user.first_name} *CANCEL* the booking:\n"
+        f"🗑️ *Booking Cancelled:*\n"
         f"📅 {canceled_date} | ⏰ {canceled_time}\n\n"
         f"{message}"
     )
