@@ -1230,7 +1230,9 @@ async def handle_take_slot_button(update: Update, context: ContextTypes.DEFAULT_
     result = await save_booking(date_str, time_str, taker.first_name, taker.id)
 
     if result == "overlap":
-        await query.answer("⚠️ This slot has already been taken.", show_alert=True)
+        # Slot is taken — remove from store so no one else can attempt via this button
+        cancel_details_store.pop(detail_key, None)
+        await query.answer("⚠️ This slot has already been taken by someone else.", show_alert=True)
         return
     elif result == "invalid":
         await query.answer("❌ Could not book this slot. Invalid time format.", show_alert=True)
