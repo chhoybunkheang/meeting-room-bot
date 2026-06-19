@@ -613,12 +613,11 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
     }
 
     detail_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("👁 Who cancelled?", callback_data=f"cancel_info:{detail_key}")]
+        [InlineKeyboardButton(f"📅 {canceled_date} | ⏰ {canceled_time}", callback_data=f"cancel_info:{detail_key}")]
     ])
 
     announcement = (
-        f"🗑️ *Booking Cancelled:*\n"
-        f"📅 {canceled_date} | ⏰ {canceled_time}\n\n"
+        f"🗑️ *Booking Cancelled* — tap the slot below for details.\n\n"
         f"{message}"
     )
 
