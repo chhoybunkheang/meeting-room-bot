@@ -1168,6 +1168,7 @@ async def handle_cancel_info_button(update: Update, context: ContextTypes.DEFAUL
         return
 
     tapper = query.from_user
+    await log_user_action(tapper, "/cancel_info")
     private_message = (
         f"🗑️ *Cancellation Details:*\n\n"
         f"👤 Cancelled by: *{details['name']}*\n"
