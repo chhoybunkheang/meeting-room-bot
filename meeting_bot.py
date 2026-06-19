@@ -1176,11 +1176,16 @@ async def handle_cancel_info_button(update: Update, context: ContextTypes.DEFAUL
         f"⏰ Time: {details['time']}"
     )
 
+    take_slot_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🙋 Take this slot", callback_data=f"take_slot:{detail_key}")]
+    ])
+
     try:
         await context.bot.send_message(
             chat_id=tapper.id,
             text=private_message,
             parse_mode="Markdown",
+            reply_markup=take_slot_keyboard,
         )
         await query.answer("✅ Details sent to your private chat!", show_alert=False)
     except Exception as e:
@@ -1189,6 +1194,75 @@ async def handle_cancel_info_button(update: Update, context: ContextTypes.DEFAUL
             show_alert=True,
         )
         print(f"⚠️ Could not send cancel detail to {tapper.first_name}: {e}")
+
+
+async def handle_take_slot_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Book the cancelled slot for the user who taps 'Take this slot'."""
+    query = update.callback_query
+    data = query.data or ""
+
+    if not data.startswith("take_slot:"):
+        await query.answer()
+        return
+
+    detail_key = data.split("take_slot:", 1)[1]
+    details = cancel_details_store.get(detail_key)
+
+    if not details:
+        await query.answer("ℹ️ This slot is no longer available.", show_alert=True)
+        return
+
+    taker = query.from_user
+    date_str = details["date"]
+    time_str = details["time"]
+
+    result = await save_booking(date_str, time_str, taker.first_name, taker.id)
+
+    if result == "overlap":
+        await query.answer("⚠️ This slot has already been taken.", show_alert=True)
+        return
+    elif result == "invalid":
+        await query.answer("❌ Could not book this slot. Invalid time format.", show_alert=True)
+        return
+
+    await log_user_action(taker, "/take_slot")
+
+    # Remove slot from store so it can't be double-booked via this button
+    cancel_details_store.pop(detail_key, None)
+
+    # Edit the private message to confirm
+    try:
+        await query.edit_message_text(
+            f"✅ *Slot booked successfully!*\n\n"
+            f"📅 {date_str} | ⏰ {time_str}",
+            parse_mode="Markdown",
+        )
+    except Exception:
+        pass
+
+    await query.answer("✅ Slot booked!", show_alert=False)
+
+    # Announce new booking to group with updated schedule
+    try:
+        records = await asyncio.to_thread(sheet.get_all_records)
+        records.sort(key=sort_key)
+
+        group_message = (
+            f"📢 *New Booking Added!*\n\n"
+            f"👤 {taker.first_name}\n"
+            f"🗓 {date_str} | ⏰ {time_str}\n\n"
+            f"📋 *Current Schedule:*\n"
+        )
+        for row in records:
+            group_message += f"{row['Date']} | {row['Time']} | {row['Name']}\n"
+
+        await context.bot.send_message(
+            chat_id=GROUP_CHAT_ID,
+            text=group_message,
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        print(f"⚠️ Could not send group message for taken slot: {e}")
 
 # ===================== MAIN =====================
 
@@ -1309,6 +1383,7 @@ def main():
     app.add_handler(CommandHandler("docs", docs_menu))
     app.add_handler(CallbackQueryHandler(handle_docs_button, pattern="^docs:"))
     app.add_handler(CallbackQueryHandler(handle_cancel_info_button, pattern="^cancel_info:"))
+    app.add_handler(CallbackQueryHandler(handle_take_slot_button, pattern="^take_slot:"))
     app.add_handler(MessageHandler(
         filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
 
