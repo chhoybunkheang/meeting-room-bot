@@ -824,7 +824,7 @@ async def send_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.send_message(
             chat_id=GROUP_CHAT_ID,
-            text=f"📢 *Announcement:*\n\n{message_text}",
+            text=message_text,
             parse_mode="Markdown"
         )
         await update.message.reply_text("✅ Announcement sent successfully!")
