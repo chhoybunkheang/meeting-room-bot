@@ -62,6 +62,9 @@ if not SPREADSHEET_URL:
 GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID"))
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
+# In-memory store for cancellation details (keyed by timestamp string)
+cancel_details_store: dict = {}
+
 # Conversation states
 SELECT_MONTH, SELECT_DAY, TIME, CANCEL_SELECT = range(4)
 ANNOUNCE_MESSAGE = 200
@@ -600,6 +603,19 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
     else:
         message = "📋 No bookings left."
 
+    # Store cancellation details for the inline button
+    detail_key = str(int(datetime.now(ZoneInfo("Asia/Phnom_Penh")).timestamp() * 1000))
+    cancel_details_store[detail_key] = {
+        "name": user.first_name,
+        "user_id": user.id,
+        "date": canceled_date,
+        "time": canceled_time,
+    }
+
+    detail_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("👁 Who cancelled?", callback_data=f"cancel_info:{detail_key}")]
+    ])
+
     announcement = (
         f"🗑️ *Booking Cancelled:*\n"
         f"📅 {canceled_date} | ⏰ {canceled_time}\n\n"
@@ -607,7 +623,12 @@ async def delete_booking_by_number(update: Update, context: ContextTypes.DEFAULT
     )
 
     try:
-        await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=announcement, parse_mode="Markdown")
+        await context.bot.send_message(
+            chat_id=GROUP_CHAT_ID,
+            text=announcement,
+            parse_mode="Markdown",
+            reply_markup=detail_keyboard,
+        )
     except Exception as e:
         print(f"⚠️ Could not send group message: {e}")
 
@@ -1131,6 +1152,44 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         except Exception as e:
             print(f"⚠️ Could not send welcome message: {e}")
 
+async def handle_cancel_info_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send cancellation details privately to whoever taps the 'Who cancelled?' button."""
+    query = update.callback_query
+    data = query.data or ""
+
+    if not data.startswith("cancel_info:"):
+        await query.answer()
+        return
+
+    detail_key = data.split("cancel_info:", 1)[1]
+    details = cancel_details_store.get(detail_key)
+
+    if not details:
+        await query.answer("ℹ️ Details are no longer available.", show_alert=True)
+        return
+
+    tapper = query.from_user
+    private_message = (
+        f"🗑️ *Cancellation Details:*\n\n"
+        f"👤 Cancelled by: *{details['name']}*\n"
+        f"📅 Date: {details['date']}\n"
+        f"⏰ Time: {details['time']}"
+    )
+
+    try:
+        await context.bot.send_message(
+            chat_id=tapper.id,
+            text=private_message,
+            parse_mode="Markdown",
+        )
+        await query.answer("✅ Details sent to your private chat!", show_alert=False)
+    except Exception as e:
+        await query.answer(
+            "⚠️ Please start the bot privately first, then try again.",
+            show_alert=True,
+        )
+        print(f"⚠️ Could not send cancel detail to {tapper.first_name}: {e}")
+
 # ===================== MAIN =====================
 
 
@@ -1249,6 +1308,7 @@ def main():
     app.add_handler(topdf_conv)
     app.add_handler(CommandHandler("docs", docs_menu))
     app.add_handler(CallbackQueryHandler(handle_docs_button, pattern="^docs:"))
+    app.add_handler(CallbackQueryHandler(handle_cancel_info_button, pattern="^cancel_info:"))
     app.add_handler(MessageHandler(
         filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
 
