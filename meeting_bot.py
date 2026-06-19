@@ -1216,6 +1216,17 @@ async def handle_take_slot_button(update: Update, context: ContextTypes.DEFAULT_
     date_str = details["date"]
     time_str = details["time"]
 
+    # Check if the slot has already expired
+    try:
+        tz = ZoneInfo("Asia/Phnom_Penh")
+        start_str = time_str.split("-")[0].strip()
+        slot_start = datetime.strptime(f"{date_str} {start_str}", "%d/%m/%Y %H:%M").replace(tzinfo=tz)
+        if slot_start < datetime.now(tz):
+            await query.answer("⏰ This slot has already expired and cannot be booked.", show_alert=True)
+            return
+    except Exception:
+        pass
+
     result = await save_booking(date_str, time_str, taker.first_name, taker.id)
 
     if result == "overlap":
