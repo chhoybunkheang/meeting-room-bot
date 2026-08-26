@@ -24,6 +24,7 @@ from telegram import (
     InputFile,
     ReplyKeyboardRemove,
     Update,
+    WebAppInfo,
 )
 from telegram.ext import (
     ApplicationBuilder,
@@ -45,8 +46,10 @@ warnings.simplefilter("ignore", PTBUserWarning)
 # ===================== CONFIG =====================
 TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
-
+MINI_APP_URL = os.getenv("MINI_APP_URL")
 # Validate environment variables
+if not MINI_APP_URL:
+    raise ValueError("❌ MINI_APP_URL environment variable is not set!")
 if not os.getenv("GROUP_CHAT_ID"):
     raise ValueError("❌ GROUP_CHAT_ID environment variable is not set!")
 if not os.getenv("ADMIN_ID"):
@@ -284,25 +287,41 @@ async def get_user_bookings(telegram_id):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
+
     await log_user_action(user, "/start")
 
-    # Get admin info
     try:
         admin = await context.bot.get_chat(ADMIN_ID)
         admin_name = admin.first_name
+
         admin_username = f"@{admin.username}" if admin.username else admin_name
+
     except Exception:
         admin_username = "the admin"
 
+    # Always create the Mini App keyboard
+    mini_app_keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "🏢 Open Meeting Room",
+                    web_app=WebAppInfo(url=MINI_APP_URL),
+                )
+            ]
+        ]
+    )
+
     await update.message.reply_text(
         "👋 Welcome to the Meeting Room Bot!\n\n"
+        "Tap the button below to open the booking app.\n\n"
         "Commands:\n"
         "/book - Book the meeting room\n"
         "/cancel - Cancel your booking\n"
         "/end - End the active meeting\n"
         "/docs - Download available documents\n"
         "/topdf - Convert document/image to PDF\n\n"
-        f"ℹ️ Created by {admin_username}"
+        f"ℹ️ Created by {admin_username}",
+        reply_markup=mini_app_keyboard,
     )
 
 

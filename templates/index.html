@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>Meeting Room</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 16px;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f5f5f5;
+            color: #222;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: auto;
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        .subtitle {
+            color: #777;
+        }
+
+        .user-box {
+            margin-top: 15px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+
+        .user-label {
+            font-size: 12px;
+            color: #777;
+        }
+
+        .user-name {
+            margin-top: 3px;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background: #f3f3f3;
+        }
+
+        .book-button,
+        .submit-button {
+            width: 100%;
+            margin-top: 20px;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            background: #222;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .cancel-button {
+            width: 100%;
+            margin-top: 10px;
+            padding: 13px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            background: white;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        .form-panel {
+            display: none;
+            margin-top: 20px;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+
+        label {
+            display: block;
+            margin-top: 12px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        input[readonly] {
+            background: #f3f3f3;
+        }
+
+        .telegram-warning {
+            display: none;
+            margin-top: 10px;
+            padding: 10px;
+            background: #fff3cd;
+            border-radius: 8px;
+        }
+    </style>
+
+</head>
+
+
+<body>
+
+    <div class="container">
+
+        <h1>Meeting Room</h1>
+
+        <div class="subtitle">
+            Book and view the meeting room schedule.
+        </div>
+
+
+        <div class="user-box">
+
+            <div class="user-label">
+                Current User
+            </div>
+
+            <div id="currentUser" class="user-name">
+                Checking Telegram...
+            </div>
+
+        </div>
+
+
+        <div id="telegramWarning" class="telegram-warning">
+            Telegram user was not detected.
+            Browser test mode is active.
+        </div>
+
+
+        <h2>Current Schedule</h2>
+
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Booked By</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% if bookings %}
+
+                {% for booking in bookings %}
+
+                <tr>
+
+                    <td>
+                        {{ booking.booking_date.strftime("%d/%m/%Y") }}
+                    </td>
+
+                    <td>
+                        {{ booking.start_time.strftime("%H:%M") }}
+                        -
+                        {{ booking.end_time.strftime("%H:%M") }}
+                    </td>
+
+                    <td>
+                        {{ booking.user_name }}
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+                {% else %}
+
+                <tr>
+                    <td colspan="3">
+                        No bookings yet.
+                    </td>
+                </tr>
+
+                {% endif %}
+
+            </tbody>
+
+        </table>
+
+
+        <button id="openBookingButton" type="button" class="book-button">
+            + Book Meeting Room
+        </button>
+
+
+        <div id="bookingForm" class="form-panel">
+
+            <h2>New Booking</h2>
+
+
+            <form method="post" action="/book">
+
+                <label>Your Name</label>
+
+                <input id="displayName" type="text" readonly>
+
+
+                <input id="userName" name="user_name" type="hidden">
+
+
+                <input id="telegramUserId" name="telegram_user_id" type="hidden">
+
+
+                <label>Date</label>
+
+                <input id="bookingDate" name="booking_date" type="date" required>
+
+
+                <label>Start Time</label>
+
+                <input name="start_time" type="time" required>
+
+
+                <label>End Time</label>
+
+                <input name="end_time" type="time" required>
+
+
+                <button type="submit" class="submit-button">
+                    Confirm Booking
+                </button>
+
+
+                <button id="closeBookingButton" type="button" class="cancel-button">
+                    Cancel
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <script>
+
+        const bookingForm =
+            document.getElementById("bookingForm");
+
+        const openBookingButton =
+            document.getElementById("openBookingButton");
+
+        const closeBookingButton =
+            document.getElementById("closeBookingButton");
+
+        const currentUser =
+            document.getElementById("currentUser");
+
+        const displayName =
+            document.getElementById("displayName");
+
+        const userName =
+            document.getElementById("userName");
+
+        const telegramUserId =
+            document.getElementById("telegramUserId");
+
+        const telegramWarning =
+            document.getElementById("telegramWarning");
+
+        const bookingDate =
+            document.getElementById("bookingDate");
+
+
+        // Prevent selecting past dates
+
+        const today = new Date();
+
+        const yyyy = today.getFullYear();
+
+        const mm =
+            String(today.getMonth() + 1)
+                .padStart(2, "0");
+
+        const dd =
+            String(today.getDate())
+                .padStart(2, "0");
+
+        bookingDate.min =
+            `${yyyy}-${mm}-${dd}`;
+
+
+        // Telegram user detection
+
+        const tg =
+            window.Telegram?.WebApp;
+
+
+        if (tg) {
+
+            tg.ready();
+
+            tg.expand();
+
+            const user =
+                tg.initDataUnsafe?.user;
+
+
+            if (user) {
+
+                const fullName =
+                    [
+                        user.first_name,
+                        user.last_name
+                    ]
+                        .filter(Boolean)
+                        .join(" ");
+
+                currentUser.textContent =
+                    fullName;
+
+                displayName.value =
+                    fullName;
+
+                userName.value =
+                    fullName;
+
+                telegramUserId.value =
+                    user.id;
+
+            }
+
+            else {
+
+                browserTestMode();
+
+            }
+
+        }
+
+        else {
+
+            browserTestMode();
+
+        }
+
+
+        function browserTestMode() {
+
+            currentUser.textContent =
+                "Browser Test Mode";
+
+            displayName.value =
+                "Browser Test User";
+
+            userName.value =
+                "Browser Test User";
+
+            telegramUserId.value =
+                "0";
+
+            telegramWarning.style.display =
+                "block";
+
+        }
+
+
+        openBookingButton.addEventListener(
+            "click",
+            function () {
+
+                bookingForm.style.display =
+                    "block";
+
+                openBookingButton.style.display =
+                    "none";
+
+            }
+        );
+
+
+        closeBookingButton.addEventListener(
+            "click",
+            function () {
+
+                bookingForm.style.display =
+                    "none";
+
+                openBookingButton.style.display =
+                    "block";
+
+            }
+        );
+
+    </script>
+
+</body>
+
+</html>
