@@ -2,6 +2,6 @@
 builder = "DOCKERFILE"
 
 [deploy]
-startCommand = "uvicorn mini_app:app --host 0.0.0.0 --port $PORT"
+startCommand = "sh -c "uvicorn mini_app:app --host 0.0.0.0 --port ${PORT:-8000}""
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
