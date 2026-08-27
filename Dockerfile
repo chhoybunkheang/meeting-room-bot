@@ -23,4 +23,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "meeting_bot.py"]
+CMD ["sh", "-c", "uvicorn mini_app:app --host 0.0.0.0 --port ${PORT:-8000}"]
