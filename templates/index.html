@@ -224,7 +224,15 @@
         <button id="openBookingButton" type="button" class="book-button">
             + Book Meeting Room
         </button>
+        <form method="post" action="/my-bookings">
 
+            <input id="myBookingsInitData" name="telegram_init_data" type="hidden">
+
+            <button type="submit" class="cancel-button">
+                My Bookings
+            </button>
+
+        </form>
 
         <div id="bookingForm" class="form-panel">
 
@@ -238,10 +246,7 @@
                 <input id="displayName" type="text" readonly>
 
 
-                <input id="userName" name="user_name" type="hidden">
-
-
-                <input id="telegramUserId" name="telegram_user_id" type="hidden">
+                <input id="telegramInitData" name="telegram_init_data" type="hidden">
 
 
                 <label>Date</label>
@@ -277,6 +282,7 @@
 
     <script>
 
+
         const bookingForm =
             document.getElementById("bookingForm");
 
@@ -292,17 +298,18 @@
         const displayName =
             document.getElementById("displayName");
 
-        const userName =
-            document.getElementById("userName");
-
-        const telegramUserId =
-            document.getElementById("telegramUserId");
-
         const telegramWarning =
             document.getElementById("telegramWarning");
 
         const bookingDate =
             document.getElementById("bookingDate");
+
+        const telegramInitData =
+            document.getElementById("telegramInitData");
+        const myBookingsInitData =
+            document.getElementById(
+                "myBookingsInitData"
+            );
 
 
         // Prevent selecting past dates
@@ -323,7 +330,7 @@
             `${yyyy}-${mm}-${dd}`;
 
 
-        // Telegram user detection
+        // Telegram Mini App user detection
 
         const tg =
             window.Telegram?.WebApp;
@@ -332,12 +339,16 @@
         if (tg) {
 
             tg.ready();
-
             tg.expand();
 
             const user =
                 tg.initDataUnsafe?.user;
 
+            // Send Telegram's signed initData to FastAPI
+            telegramInitData.value =
+                tg.initData || "";
+            myBookingsInitData.value =
+                tg.initData || "";
 
             if (user) {
 
@@ -354,12 +365,6 @@
 
                 displayName.value =
                     fullName;
-
-                userName.value =
-                    fullName;
-
-                telegramUserId.value =
-                    user.id;
 
             }
 
@@ -386,14 +391,12 @@
             displayName.value =
                 "Browser Test User";
 
-            userName.value =
-                "Browser Test User";
-
-            telegramUserId.value =
-                "0";
+            telegramInitData.value =
+                "";
 
             telegramWarning.style.display =
                 "block";
+            myBookingsInitData.value = "";
 
         }
 
@@ -426,6 +429,7 @@
         );
 
     </script>
+
 
 </body>
 
