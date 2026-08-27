@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import os
 from datetime import datetime
 from urllib.parse import parse_qsl
@@ -8,8 +9,10 @@ from urllib.parse import parse_qsl
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import create_engine, text
+from telegram import Bot
 
 # =========================================================
 # CONFIG
@@ -19,6 +22,7 @@ load_dotenv(override=True)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
+GROUP_CHAT_ID = os.getenv("GROUP_CHAT_ID")
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not configured")
@@ -26,6 +30,11 @@ if not BOT_TOKEN:
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is not configured")
 
+if not GROUP_CHAT_ID:
+    raise RuntimeError("GROUP_CHAT_ID is not configured")
+
+
+logger = logging.getLogger(__name__)
 
 engine = create_engine(
     DATABASE_URL,
@@ -34,7 +43,21 @@ engine = create_engine(
 
 app = FastAPI(title="Meeting Room Mini App")
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 templates = Jinja2Templates(directory="templates")
+
+
+async def notify_group(message: str) -> None:
+    """Send a Mini App booking update without failing the user action."""
+    try:
+        async with Bot(token=BOT_TOKEN) as bot:
+            await bot.send_message(
+                chat_id=GROUP_CHAT_ID,
+                text=message,
+            )
+    except Exception:
+        logger.exception("Could not send booking notification to the group")
 
 
 # =========================================================
@@ -304,6 +327,14 @@ async def create_booking(
             },
         )
 
+    await notify_group(
+        "📢 New booking\n\n"
+        f"👤 {user_name}\n"
+        f"📅 {booking_date_value.strftime('%d/%m/%Y')}\n"
+        f"⏰ {start_time_value.strftime('%H:%M')}–"
+        f"{end_time_value.strftime('%H:%M')}"
+    )
+
     return RedirectResponse(
         url="/",
         status_code=303,
@@ -415,6 +446,10 @@ async def cancel_booking(
                     SELECT
                         id,
                         telegram_user_id,
+                        user_name,
+                        booking_date,
+                        start_time,
+                        end_time,
                         status
                     FROM bookings
                     WHERE id = :booking_id
@@ -465,6 +500,14 @@ async def cancel_booking(
                 "booking_id": booking_id_value,
             },
         )
+
+    await notify_group(
+        "🗑️ Booking cancelled\n\n"
+        f"👤 {booking['user_name']}\n"
+        f"📅 {booking['booking_date'].strftime('%d/%m/%Y')}\n"
+        f"⏰ {booking['start_time'].strftime('%H:%M')}–"
+        f"{booking['end_time'].strftime('%H:%M')}"
+    )
 
     return RedirectResponse(
         url="/",
