@@ -23,4 +23,5 @@ env/
 
 # OS
 .DS_Store
-Thumbs.dbmeeting_room_bot.backup
+Thumbs.db
+meeting_room_bot.backup
