@@ -124,6 +124,13 @@
                         My Bookings
                     </button>
                 </form>
+                <form id="adminPanelForm" class="admin-entry" method="post" action="/admin">
+                    <input id="adminInitData" name="telegram_init_data" type="hidden">
+                    <button type="submit" class="admin-panel-button">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5c0 4.6 3.2 8.3 7.5 10 4.3-1.7 7.5-5.4 7.5-10V6L12 3Zm-3 9 2 2 4-4"/></svg>
+                        Admin Panel
+                    </button>
+                </form>
             </div>
         </section>
 
@@ -177,6 +184,9 @@
         const bookingDate = document.getElementById("bookingDate");
         const telegramInitData = document.getElementById("telegramInitData");
         const myBookingsInitData = document.getElementById("myBookingsInitData");
+        const adminPanelForm = document.getElementById("adminPanelForm");
+        const adminInitData = document.getElementById("adminInitData");
+        const configuredAdminId = {{ admin_id }};
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -212,8 +222,12 @@
             const user = tg.initDataUnsafe?.user;
             telegramInitData.value = tg.initData || "";
             myBookingsInitData.value = tg.initData || "";
+            adminInitData.value = tg.initData || "";
             if (user) {
                 displayName.value = [user.first_name, user.last_name].filter(Boolean).join(" ");
+                if (Number(user.id) === configuredAdminId) {
+                    adminPanelForm.style.display = "block";
+                }
             } else {
                 browserTestMode();
             }
@@ -225,6 +239,7 @@
             displayName.value = "Browser Test User";
             telegramInitData.value = "";
             myBookingsInitData.value = "";
+            adminInitData.value = "";
             telegramWarning.style.display = "block";
         }
 

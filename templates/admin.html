@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f4f7ff">
+    <title>Admin Panel · B03 Meeting Room</title>
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260829-1">
+    <link rel="stylesheet" href="/static/css/admin.css?v=20260829-1">
+    <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
+</head>
+
+<body class="admin-body">
+    <main class="admin-shell">
+        <header class="admin-topbar">
+            <div class="admin-title">
+                <span class="admin-shield" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5c0 4.6 3.2 8.3 7.5 10 4.3-1.7 7.5-5.4 7.5-10V6L12 3Zm-3 9 2 2 4-4"/></svg>
+                </span>
+                <h1>Admin Panel</h1>
+            </div>
+            <button type="button" class="admin-close" aria-label="Back to meeting room" onclick="window.location.href='/'">×</button>
+        </header>
+
+        {% if feedback %}
+        <div class="admin-feedback {{ feedback_type }}" role="status">{{ feedback }}</div>
+        {% endif %}
+
+        <section class="admin-hero">
+            <div class="admin-hero-orb admin-orb-one"></div>
+            <div class="admin-hero-orb admin-orb-two"></div>
+            <div class="admin-hero-copy">
+                <span class="admin-calendar" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M7 3v3m10-3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/></svg>
+                </span>
+                <div>
+                    <h2>Welcome, {{ admin_name }}</h2>
+                    <p>Manage meeting room bookings and settings.</p>
+                </div>
+            </div>
+            <div class="room-status {{ room_status_type }}">
+                <span>Room Status</span>
+                <strong><i></i>{{ room_status }}</strong>
+                <small>{{ room_status_detail }}</small>
+            </div>
+        </section>
+
+        <section class="admin-stats" aria-label="Booking statistics">
+            <a class="stat-card blue" href="#upcomingBookings">
+                <span class="stat-icon">▣</span>
+                <strong>{{ stats.today_count or 0 }}</strong>
+                <span>Today’s Bookings</span>
+                <small>View today ›</small>
+            </a>
+            <a class="stat-card green" href="#upcomingBookings">
+                <span class="stat-icon">▦</span>
+                <strong>{{ stats.week_count or 0 }}</strong>
+                <span>This Week</span>
+                <small>View this week ›</small>
+            </a>
+            <a class="stat-card purple" href="#upcomingBookings">
+                <span class="stat-icon">▥</span>
+                <strong>{{ stats.month_count or 0 }}</strong>
+                <span>This Month</span>
+                <small>View this month ›</small>
+            </a>
+            <a class="stat-card orange" href="#upcomingBookings">
+                <span class="stat-icon">◷</span>
+                <strong>{{ stats.current_count or 0 }}</strong>
+                <span>Currently Booked</span>
+                <small>See now ›</small>
+            </a>
+        </section>
+
+        <section class="admin-card quick-actions" aria-labelledby="quickActionsTitle">
+            <h2 id="quickActionsTitle">Quick Actions</h2>
+            <div class="quick-grid">
+                <button type="button" class="quick-action blue" data-open-panel="addBookingPanel"><span>▣</span>Add Booking</button>
+                <button type="button" class="quick-action red" data-open-panel="blockRoomPanel"><span>▣</span>Block Room</button>
+                <a class="quick-action purple" href="#upcomingBookings"><span>☷</span>View All Bookings</a>
+                <button type="button" class="quick-action orange" data-open-panel="unblockRoomPanel"><span>▢</span>Unblock Room</button>
+                <a class="quick-action teal" href="#recentActivity"><span>♙</span>User Activity</a>
+                <button type="button" class="quick-action blue" data-open-panel="noticePanel"><span>⚑</span>Send Group Notice</button>
+            </div>
+        </section>
+
+        <section id="addBookingPanel" class="admin-card admin-panel" hidden>
+            <div class="admin-section-heading"><h2>Add Booking</h2><button type="button" data-close-panel>×</button></div>
+            <form method="post" action="/admin/bookings/add" class="admin-form">
+                <input class="admin-init-data" type="hidden" name="telegram_init_data" value="{{ telegram_init_data }}">
+                <label for="adminBookingName">Booked By</label>
+                <input id="adminBookingName" name="user_name" type="text" placeholder="Name" required>
+                <div class="admin-form-grid three">
+                    <div><label for="adminBookingDate">Date</label><input id="adminBookingDate" name="booking_date" type="date" min="{{ today.isoformat() }}" required></div>
+                    <div><label for="adminBookingStart">Start</label><input id="adminBookingStart" name="start_time" type="time" required></div>
+                    <div><label for="adminBookingEnd">End</label><input id="adminBookingEnd" name="end_time" type="time" required></div>
+                </div>
+                <div class="admin-form-actions"><button class="admin-primary" type="submit">Add Booking</button><button type="button" class="admin-secondary" data-close-panel>Cancel</button></div>
+            </form>
+        </section>
+
+        <section id="blockRoomPanel" class="admin-card admin-panel" hidden>
+            <div class="admin-section-heading"><h2>Block Room</h2><button type="button" data-close-panel>×</button></div>
+            <form method="post" action="/admin/blocks/add" class="admin-form">
+                <input class="admin-init-data" type="hidden" name="telegram_init_data" value="{{ telegram_init_data }}">
+                <div class="admin-form-grid three">
+                    <div><label for="blockDate">Date</label><input id="blockDate" name="booking_date" type="date" min="{{ today.isoformat() }}" required></div>
+                    <div><label for="blockStart">Start</label><input id="blockStart" name="start_time" type="time" required></div>
+                    <div><label for="blockEnd">End</label><input id="blockEnd" name="end_time" type="time" required></div>
+                </div>
+                <label for="blockReason">Reason <span class="optional">Optional</span></label>
+                <input id="blockReason" name="reason" type="text" maxlength="80" placeholder="Maintenance, private event…">
+                <div class="admin-form-actions"><button class="admin-danger" type="submit">Block Room</button><button type="button" class="admin-secondary" data-close-panel>Cancel</button></div>
+            </form>
+        </section>
+
+        <section id="unblockRoomPanel" class="admin-card admin-panel" hidden>
+            <div class="admin-section-heading"><h2>Active Room Blocks</h2><button type="button" data-close-panel>×</button></div>
+            {% if room_blocks %}
+            <div class="block-list">
+                {% for block in room_blocks %}
+                <form method="post" action="/admin/blocks/remove" onsubmit="return confirm('Remove this room block?');">
+                    <input class="admin-init-data" type="hidden" name="telegram_init_data" value="{{ telegram_init_data }}">
+                    <input type="hidden" name="booking_id" value="{{ block.id }}">
+                    <div><strong>{{ block.booking_date.strftime('%d/%m/%Y') }}</strong><span>{{ block.start_time.strftime('%H:%M') }}–{{ block.end_time.strftime('%H:%M') }}</span><small>{{ block.user_name }}</small></div>
+                    <button type="submit" class="admin-warning">Unblock</button>
+                </form>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="admin-empty">There are no active room blocks.</p>
+            {% endif %}
+        </section>
+
+        <section id="noticePanel" class="admin-card admin-panel" hidden>
+            <div class="admin-section-heading"><h2>Send Group Notice</h2><button type="button" data-close-panel>×</button></div>
+            <form method="post" action="/admin/notice" class="admin-form">
+                <input class="admin-init-data" type="hidden" name="telegram_init_data" value="{{ telegram_init_data }}">
+                <label for="noticeMessage">Message</label>
+                <textarea id="noticeMessage" name="message" rows="5" maxlength="3500" placeholder="Write your group announcement…" required></textarea>
+                <div class="admin-form-actions"><button class="admin-primary" type="submit">Send Notice</button><button type="button" class="admin-secondary" data-close-panel>Cancel</button></div>
+            </form>
+        </section>
+
+        <section id="upcomingBookings" class="admin-card" aria-labelledby="upcomingTitle">
+            <div class="admin-section-heading"><h2 id="upcomingTitle">Upcoming Bookings</h2><span>{{ upcoming_bookings|length }} total</span></div>
+            {% if upcoming_bookings %}
+            <div class="admin-booking-list">
+                {% for booking in upcoming_bookings %}
+                <article class="admin-booking-row" data-user-name="{{ booking.user_name|e }}">
+                    <div class="admin-date-badge"><span>{{ booking.booking_date.strftime('%b') }}</span><strong>{{ booking.booking_date.strftime('%d') }}</strong></div>
+                    <div class="admin-booking-time"><span>◷</span><strong>{{ booking.start_time.strftime('%H:%M') }}–{{ booking.end_time.strftime('%H:%M') }}</strong></div>
+                    <div class="admin-booking-user"><span class="admin-avatar"></span><strong>{{ booking.user_name }}</strong></div>
+                    <div class="admin-booking-actions">
+                        <button type="button" class="edit-button" data-edit-booking="{{ booking.id }}">✎ Edit</button>
+                        <form method="post" action="/admin/bookings/cancel" onsubmit="return confirm('Cancel this booking?');">
+                            <input class="admin-init-data" type="hidden" name="telegram_init_data" value="{{ telegram_init_data }}">
+                            <input type="hidden" name="booking_id" value="{{ booking.id }}">
+                            <button type="submit" class="delete-button">♲ Cancel</button>
+                        </form>
+                    </div>
+                    <form id="editBooking{{ booking.id }}" class="inline-edit admin-form" method="post" action="/admin/bookings/edit" hidden>
+                        <input class="admin-init-data" type="hidden" name="telegram_init_data" value="{{ telegram_init_data }}">
+                        <input type="hidden" name="booking_id" value="{{ booking.id }}">
+                        <div class="admin-form-grid three">
+                            <div><label>Date</label><input name="booking_date" type="date" min="{{ today.isoformat() }}" value="{{ booking.booking_date.isoformat() }}" required></div>
+                            <div><label>Start</label><input name="start_time" type="time" value="{{ booking.start_time.strftime('%H:%M') }}" required></div>
+                            <div><label>End</label><input name="end_time" type="time" value="{{ booking.end_time.strftime('%H:%M') }}" required></div>
+                        </div>
+                        <div class="admin-form-actions"><button class="admin-primary" type="submit">Save Changes</button><button type="button" class="admin-secondary" data-close-edit>Cancel</button></div>
+                    </form>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="admin-empty">No upcoming bookings.</p>
+            {% endif %}
+        </section>
+
+        <section id="recentActivity" class="admin-card" aria-labelledby="activityTitle">
+            <div class="admin-section-heading"><h2 id="activityTitle">Recent Activity</h2><span>{{ recent_activity|length }} recent</span></div>
+            {% if recent_activity %}
+            <div class="activity-list">
+                {% for activity in recent_activity %}
+                <article><span class="activity-icon">{{ '✓' if 'add' in activity.command else '•' }}</span><div><strong>{{ activity.command.replace('_', ' ').replace('/', '').title() }} by {{ activity.user_name }}</strong><small>{{ activity.created_at.strftime('%d/%m/%Y · %H:%M') }}</small></div></article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="admin-empty">No activity has been recorded yet.</p>
+            {% endif %}
+        </section>
+
+        <footer class="app-footer"><span class="telegram-mark" aria-hidden="true">➤</span>@KHEANG_C_BOT</footer>
+    </main>
+
+    <script>
+        const tg = window.Telegram?.WebApp;
+        if (tg) { tg.ready(); tg.expand(); }
+
+        document.querySelectorAll("[data-open-panel]").forEach(function (button) {
+            button.addEventListener("click", function () {
+                document.querySelectorAll(".admin-panel").forEach(function (panel) { panel.hidden = true; });
+                const panel = document.getElementById(button.dataset.openPanel);
+                panel.hidden = false;
+                panel.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+        });
+        document.querySelectorAll("[data-close-panel]").forEach(function (button) {
+            button.addEventListener("click", function () { button.closest(".admin-panel").hidden = true; });
+        });
+        document.querySelectorAll("[data-edit-booking]").forEach(function (button) {
+            button.addEventListener("click", function () {
+                const form = document.getElementById("editBooking" + button.dataset.editBooking);
+                form.hidden = !form.hidden;
+            });
+        });
+        document.querySelectorAll("[data-close-edit]").forEach(function (button) {
+            button.addEventListener("click", function () { button.closest(".inline-edit").hidden = true; });
+        });
+        document.querySelectorAll(".admin-booking-row").forEach(function (row) {
+            const initials = row.dataset.userName.trim().split(/\s+/).filter(Boolean).slice(0, 2).map(function (part) { return part[0].toUpperCase(); }).join("") || "U";
+            row.querySelector(".admin-avatar").textContent = initials;
+        });
+    </script>
+</body>
+
+</html>

@@ -10,7 +10,7 @@ from urllib.parse import parse_qsl
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -26,6 +26,7 @@ load_dotenv(override=True)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 GROUP_CHAT_ID = os.getenv("GROUP_CHAT_ID")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not configured")
@@ -35,6 +36,9 @@ if not DATABASE_URL:
 
 if not GROUP_CHAT_ID:
     raise RuntimeError("GROUP_CHAT_ID is not configured")
+
+if not ADMIN_ID:
+    raise RuntimeError("ADMIN_ID is not configured")
 
 
 logger = logging.getLogger(__name__)
@@ -61,6 +65,146 @@ SCHEDULE_NOTIFICATION_LIMIT = 20
 MEETING_TIMEZONE = ZoneInfo(
     os.getenv("MEETING_TIMEZONE", "Asia/Phnom_Penh")
 )
+ROOM_BLOCK_PREFIX = "🔒 Room Blocked"
+
+
+def authenticate_admin(init_data: str) -> dict:
+    """Validate Telegram Mini App data and require the configured admin."""
+    try:
+        user = validate_telegram_init_data(init_data)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    if int(user.get("id", 0)) != ADMIN_ID:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    return user
+
+
+def record_activity(user: dict, action: str) -> None:
+    """Reuse the existing user_activity table for Mini App admin actions."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO user_activity (
+                        telegram_user_id,
+                        user_name,
+                        command
+                    )
+                    VALUES (
+                        :telegram_user_id,
+                        :user_name,
+                        :command
+                    )
+                """),
+                {
+                    "telegram_user_id": user["id"],
+                    "user_name": user.get("first_name", "Admin"),
+                    "command": action,
+                },
+            )
+    except Exception:
+        logger.exception("Could not record admin activity")
+
+
+def parse_booking_datetime_values(
+    booking_date: str,
+    start_time: str,
+    end_time: str,
+):
+    try:
+        booking_date_value = datetime.strptime(booking_date, "%Y-%m-%d").date()
+        start_time_value = datetime.strptime(start_time, "%H:%M").time()
+        end_time_value = datetime.strptime(end_time, "%H:%M").time()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid date or time") from exc
+
+    if booking_date_value < datetime.now(MEETING_TIMEZONE).date():
+        raise HTTPException(status_code=400, detail="Date cannot be in the past")
+    if end_time_value <= start_time_value:
+        raise HTTPException(status_code=400, detail="End time must be after start time")
+
+    return booking_date_value, start_time_value, end_time_value
+
+
+def find_overlapping_booking(
+    conn,
+    booking_date,
+    start_time,
+    end_time,
+    exclude_booking_id: int = 0,
+):
+    return (
+        conn.execute(
+            text("""
+                SELECT id, user_name, start_time, end_time
+                FROM bookings
+                WHERE booking_date = :booking_date
+                  AND status = 'BOOKED'
+                  AND start_time < :end_time
+                  AND end_time > :start_time
+                  AND (:exclude_booking_id = 0 OR id != :exclude_booking_id)
+                ORDER BY start_time
+                LIMIT 1
+            """),
+            {
+                "booking_date": booking_date,
+                "start_time": start_time,
+                "end_time": end_time,
+                "exclude_booking_id": exclude_booking_id,
+            },
+        )
+        .mappings()
+        .first()
+    )
+
+
+def cancel_active_booking(
+    booking_id: int,
+    allowed_user_id: int | None = None,
+    block_requirement: bool | None = None,
+):
+    """Shared cancellation transition for users and admin actions."""
+    with engine.begin() as conn:
+        booking = (
+            conn.execute(
+                text("""
+                    SELECT id, telegram_user_id, user_name, booking_date,
+                           start_time, end_time, status
+                    FROM bookings
+                    WHERE id = :booking_id
+                """),
+                {"booking_id": booking_id},
+            )
+            .mappings()
+            .first()
+        )
+
+        if not booking:
+            return "not_found", None
+        if allowed_user_id is not None and booking["telegram_user_id"] != allowed_user_id:
+            return "forbidden", booking
+        if booking["status"] != "BOOKED":
+            return "inactive", booking
+
+        is_block = booking["user_name"].startswith(ROOM_BLOCK_PREFIX)
+        if block_requirement is not None and is_block != block_requirement:
+            return "wrong_type", booking
+
+        result = conn.execute(
+            text("""
+                UPDATE bookings
+                SET status = 'CANCELLED'
+                WHERE id = :booking_id
+                  AND status = 'BOOKED'
+            """),
+            {"booking_id": booking_id},
+        )
+        if result.rowcount != 1:
+            return "inactive", booking
+
+    return "success", booking
 
 
 def format_current_schedule() -> str:
@@ -268,6 +412,7 @@ async def home(
             "page": page,
             "total_pages": total_pages,
             "schedule_filter": schedule_filter,
+            "admin_id": ADMIN_ID,
         },
     )
 
@@ -595,66 +740,26 @@ async def cancel_booking(
 
     telegram_user_id = telegram_user["id"]
 
-    with engine.begin() as conn:
-        booking = (
-            conn.execute(
-                text("""
-                    SELECT
-                        id,
-                        telegram_user_id,
-                        user_name,
-                        booking_date,
-                        start_time,
-                        end_time,
-                        status
-                    FROM bookings
-                    WHERE id = :booking_id
-                """),
-                {
-                    "booking_id": booking_id_value,
-                },
-            )
-            .mappings()
-            .first()
+    cancel_result, booking = cancel_active_booking(
+        booking_id_value,
+        allowed_user_id=telegram_user_id,
+        block_requirement=False,
+    )
+    if cancel_result == "not_found":
+        return HTMLResponse(
+            "<h2>Booking not found</h2><a href='/'>Back</a>",
+            status_code=404,
         )
-
-        if not booking:
-            return HTMLResponse(
-                """
-                <h2>Booking not found</h2>
-                <a href="/">Back</a>
-                """,
-                status_code=404,
-            )
-
-        if booking["telegram_user_id"] != telegram_user_id:
-            return HTMLResponse(
-                """
-                <h2>Not allowed</h2>
-                <p>You can only cancel your own booking.</p>
-                <a href="/">Back</a>
-                """,
-                status_code=403,
-            )
-
-        if booking["status"] != "BOOKED":
-            return HTMLResponse(
-                """
-                <h2>Booking already cancelled</h2>
-                <a href="/">Back</a>
-                """,
-                status_code=400,
-            )
-
-        conn.execute(
-            text("""
-                UPDATE bookings
-                SET status = 'CANCELLED'
-                WHERE id = :booking_id
-            """),
-            {
-                "booking_id": booking_id_value,
-            },
+    if cancel_result in {"forbidden", "wrong_type"}:
+        return HTMLResponse(
+            "<h2>Not allowed</h2><p>You can only cancel your own booking.</p>"
+            "<a href='/'>Back</a>",
+            status_code=403,
+        )
+    if cancel_result != "success":
+        return HTMLResponse(
+            "<h2>Booking already cancelled</h2><a href='/'>Back</a>",
+            status_code=400,
         )
 
     await notify_group(
@@ -805,4 +910,448 @@ async def end_booking(
     return RedirectResponse(
         url="/",
         status_code=303,
+    )
+
+
+# =========================================================
+# ADMIN MINI APP
+# =========================================================
+
+
+def render_admin_dashboard(
+    request: Request,
+    admin_user: dict,
+    telegram_init_data: str,
+    feedback: str = "",
+    feedback_type: str = "success",
+):
+    now = datetime.now(MEETING_TIMEZONE)
+    today = now.date()
+    week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=7)
+    month_start = today.replace(day=1)
+    next_month = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    block_pattern = f"{ROOM_BLOCK_PREFIX}%"
+
+    with engine.connect() as conn:
+        stats = (
+            conn.execute(
+                text("""
+                    SELECT
+                        COUNT(*) FILTER (
+                            WHERE booking_date = :today
+                              AND user_name NOT LIKE :block_pattern
+                        ) AS today_count,
+                        COUNT(*) FILTER (
+                            WHERE booking_date >= :week_start
+                              AND booking_date < :week_end
+                              AND user_name NOT LIKE :block_pattern
+                        ) AS week_count,
+                        COUNT(*) FILTER (
+                            WHERE booking_date >= :month_start
+                              AND booking_date < :next_month
+                              AND user_name NOT LIKE :block_pattern
+                        ) AS month_count,
+                        COUNT(*) FILTER (
+                            WHERE booking_date = :today
+                              AND start_time <= :current_time
+                              AND end_time > :current_time
+                              AND user_name NOT LIKE :block_pattern
+                        ) AS current_count
+                    FROM bookings
+                    WHERE status = 'BOOKED'
+                """),
+                {
+                    "today": today,
+                    "week_start": week_start,
+                    "week_end": week_end,
+                    "month_start": month_start,
+                    "next_month": next_month,
+                    "current_time": now.time().replace(tzinfo=None),
+                    "block_pattern": block_pattern,
+                },
+            )
+            .mappings()
+            .first()
+        )
+
+        active_slot = (
+            conn.execute(
+                text("""
+                    SELECT user_name, end_time
+                    FROM bookings
+                    WHERE status = 'BOOKED'
+                      AND booking_date = :today
+                      AND start_time <= :current_time
+                      AND end_time > :current_time
+                    ORDER BY start_time
+                    LIMIT 1
+                """),
+                {
+                    "today": today,
+                    "current_time": now.time().replace(tzinfo=None),
+                },
+            )
+            .mappings()
+            .first()
+        )
+
+        upcoming_bookings = (
+            conn.execute(
+                text("""
+                    SELECT id, telegram_user_id, user_name,
+                           booking_date, start_time, end_time
+                    FROM bookings
+                    WHERE status = 'BOOKED'
+                      AND booking_date >= :today
+                      AND user_name NOT LIKE :block_pattern
+                    ORDER BY booking_date, start_time
+                """),
+                {"today": today, "block_pattern": block_pattern},
+            )
+            .mappings()
+            .all()
+        )
+
+        room_blocks = (
+            conn.execute(
+                text("""
+                    SELECT id, user_name, booking_date, start_time, end_time
+                    FROM bookings
+                    WHERE status = 'BOOKED'
+                      AND booking_date >= :today
+                      AND user_name LIKE :block_pattern
+                    ORDER BY booking_date, start_time
+                """),
+                {"today": today, "block_pattern": block_pattern},
+            )
+            .mappings()
+            .all()
+        )
+
+        try:
+            recent_activity = (
+                conn.execute(
+                    text("""
+                        SELECT user_name, command, created_at
+                        FROM user_activity
+                        ORDER BY created_at DESC
+                        LIMIT 10
+                    """)
+                )
+                .mappings()
+                .all()
+            )
+        except Exception:
+            logger.exception("Could not load recent admin activity")
+            recent_activity = []
+
+    if active_slot:
+        is_blocked = active_slot["user_name"].startswith(ROOM_BLOCK_PREFIX)
+        room_status = "Blocked" if is_blocked else "Currently Booked"
+        room_status_detail = (
+            f"Until {active_slot['end_time'].strftime('%H:%M')}"
+        )
+        room_status_type = "blocked" if is_blocked else "booked"
+    else:
+        room_status = "Available"
+        next_booking = upcoming_bookings[0] if upcoming_bookings else None
+        if next_booking and next_booking["booking_date"] == today:
+            room_status_detail = (
+                f"Until {next_booking['start_time'].strftime('%H:%M')}"
+            )
+        else:
+            room_status_detail = "Ready to book"
+        room_status_type = "available"
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin.html",
+        context={
+            "admin_name": admin_user.get("first_name", "Admin"),
+            "telegram_init_data": telegram_init_data,
+            "stats": stats,
+            "room_status": room_status,
+            "room_status_detail": room_status_detail,
+            "room_status_type": room_status_type,
+            "upcoming_bookings": upcoming_bookings,
+            "room_blocks": room_blocks,
+            "recent_activity": recent_activity,
+            "today": today,
+            "feedback": feedback,
+            "feedback_type": feedback_type,
+        },
+    )
+
+
+@app.post("/admin", response_class=HTMLResponse)
+async def admin_dashboard(
+    request: Request,
+    telegram_init_data: str = Form(...),
+):
+    admin_user = authenticate_admin(telegram_init_data)
+    return render_admin_dashboard(request, admin_user, telegram_init_data)
+
+
+@app.post("/admin/bookings/add", response_class=HTMLResponse)
+async def admin_add_booking(
+    request: Request,
+    telegram_init_data: str = Form(...),
+    user_name: str = Form("Admin"),
+    booking_date: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+):
+    admin_user = authenticate_admin(telegram_init_data)
+    date_value, start_value, end_value = parse_booking_datetime_values(
+        booking_date, start_time, end_time
+    )
+    booking_name = user_name.strip() or "Admin"
+
+    with engine.begin() as conn:
+        if find_overlapping_booking(conn, date_value, start_value, end_value):
+            return render_admin_dashboard(
+                request,
+                admin_user,
+                telegram_init_data,
+                "That time overlaps with an existing booking or room block.",
+                "error",
+            )
+        conn.execute(
+            text("""
+                INSERT INTO bookings (
+                    telegram_user_id, user_name, booking_date,
+                    start_time, end_time, status
+                ) VALUES (
+                    :telegram_user_id, :user_name, :booking_date,
+                    :start_time, :end_time, 'BOOKED'
+                )
+            """),
+            {
+                "telegram_user_id": ADMIN_ID,
+                "user_name": booking_name,
+                "booking_date": date_value,
+                "start_time": start_value,
+                "end_time": end_value,
+            },
+        )
+
+    record_activity(admin_user, "/admin_add_booking")
+    await notify_group(
+        "📢 Booking added by Admin\n\n"
+        f"👤 {booking_name}\n"
+        f"📅 {date_value.strftime('%d/%m/%Y')}\n"
+        f"⏰ {start_value.strftime('%H:%M')}–{end_value.strftime('%H:%M')}\n\n"
+        f"{format_current_schedule()}"
+    )
+    return render_admin_dashboard(
+        request, admin_user, telegram_init_data, "Booking added successfully."
+    )
+
+
+@app.post("/admin/bookings/edit", response_class=HTMLResponse)
+async def admin_edit_booking(
+    request: Request,
+    telegram_init_data: str = Form(...),
+    booking_id: int = Form(...),
+    booking_date: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+):
+    admin_user = authenticate_admin(telegram_init_data)
+    date_value, start_value, end_value = parse_booking_datetime_values(
+        booking_date, start_time, end_time
+    )
+
+    with engine.begin() as conn:
+        booking = (
+            conn.execute(
+                text("""
+                    SELECT id, user_name, status
+                    FROM bookings
+                    WHERE id = :booking_id
+                """),
+                {"booking_id": booking_id},
+            )
+            .mappings()
+            .first()
+        )
+        if not booking or booking["status"] != "BOOKED":
+            raise HTTPException(status_code=404, detail="Active booking not found")
+        if booking["user_name"].startswith(ROOM_BLOCK_PREFIX):
+            raise HTTPException(status_code=400, detail="Use unblock and create a new block")
+        if find_overlapping_booking(
+            conn, date_value, start_value, end_value, booking_id
+        ):
+            return render_admin_dashboard(
+                request,
+                admin_user,
+                telegram_init_data,
+                "The edited time overlaps with another booking or room block.",
+                "error",
+            )
+        conn.execute(
+            text("""
+                UPDATE bookings
+                SET booking_date = :booking_date,
+                    start_time = :start_time,
+                    end_time = :end_time
+                WHERE id = :booking_id AND status = 'BOOKED'
+            """),
+            {
+                "booking_id": booking_id,
+                "booking_date": date_value,
+                "start_time": start_value,
+                "end_time": end_value,
+            },
+        )
+
+    record_activity(admin_user, "/admin_edit_booking")
+    await notify_group(
+        "✏️ Booking updated by Admin\n\n"
+        f"👤 {booking['user_name']}\n"
+        f"📅 {date_value.strftime('%d/%m/%Y')}\n"
+        f"⏰ {start_value.strftime('%H:%M')}–{end_value.strftime('%H:%M')}\n\n"
+        f"{format_current_schedule()}"
+    )
+    return render_admin_dashboard(
+        request, admin_user, telegram_init_data, "Booking updated successfully."
+    )
+
+
+@app.post("/admin/bookings/cancel", response_class=HTMLResponse)
+async def admin_cancel_booking(
+    request: Request,
+    telegram_init_data: str = Form(...),
+    booking_id: int = Form(...),
+):
+    admin_user = authenticate_admin(telegram_init_data)
+    cancel_result, booking = cancel_active_booking(
+        booking_id,
+        block_requirement=False,
+    )
+    if cancel_result == "wrong_type":
+        raise HTTPException(status_code=400, detail="Use Unblock Room")
+    if cancel_result != "success":
+        raise HTTPException(status_code=404, detail="Active booking not found")
+
+    record_activity(admin_user, "/admin_cancel_booking")
+    await notify_group(
+        "🗑️ Booking cancelled by Admin\n\n"
+        f"👤 {booking['user_name']}\n"
+        f"📅 {booking['booking_date'].strftime('%d/%m/%Y')}\n"
+        f"⏰ {booking['start_time'].strftime('%H:%M')}–"
+        f"{booking['end_time'].strftime('%H:%M')}\n\n"
+        f"{format_current_schedule()}"
+    )
+    return render_admin_dashboard(
+        request, admin_user, telegram_init_data, "Booking cancelled."
+    )
+
+
+@app.post("/admin/blocks/add", response_class=HTMLResponse)
+async def admin_block_room(
+    request: Request,
+    telegram_init_data: str = Form(...),
+    booking_date: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    reason: str = Form(""),
+):
+    admin_user = authenticate_admin(telegram_init_data)
+    date_value, start_value, end_value = parse_booking_datetime_values(
+        booking_date, start_time, end_time
+    )
+    block_name = ROOM_BLOCK_PREFIX
+    if reason.strip():
+        block_name = f"{ROOM_BLOCK_PREFIX}: {reason.strip()[:80]}"
+
+    with engine.begin() as conn:
+        if find_overlapping_booking(conn, date_value, start_value, end_value):
+            return render_admin_dashboard(
+                request,
+                admin_user,
+                telegram_init_data,
+                "The room cannot be blocked because that time is already occupied.",
+                "error",
+            )
+        conn.execute(
+            text("""
+                INSERT INTO bookings (
+                    telegram_user_id, user_name, booking_date,
+                    start_time, end_time, status
+                ) VALUES (
+                    :telegram_user_id, :user_name, :booking_date,
+                    :start_time, :end_time, 'BOOKED'
+                )
+            """),
+            {
+                "telegram_user_id": ADMIN_ID,
+                "user_name": block_name,
+                "booking_date": date_value,
+                "start_time": start_value,
+                "end_time": end_value,
+            },
+        )
+
+    record_activity(admin_user, "/admin_block_room")
+    await notify_group(
+        "🔒 Meeting room blocked by Admin\n\n"
+        f"📅 {date_value.strftime('%d/%m/%Y')}\n"
+        f"⏰ {start_value.strftime('%H:%M')}–{end_value.strftime('%H:%M')}\n"
+        f"📝 {reason.strip() or 'No reason provided'}\n\n"
+        f"{format_current_schedule()}"
+    )
+    return render_admin_dashboard(
+        request, admin_user, telegram_init_data, "Room blocked successfully."
+    )
+
+
+@app.post("/admin/blocks/remove", response_class=HTMLResponse)
+async def admin_unblock_room(
+    request: Request,
+    telegram_init_data: str = Form(...),
+    booking_id: int = Form(...),
+):
+    admin_user = authenticate_admin(telegram_init_data)
+    cancel_result, block = cancel_active_booking(
+        booking_id,
+        block_requirement=True,
+    )
+    if cancel_result != "success":
+        raise HTTPException(status_code=404, detail="Active room block not found")
+
+    record_activity(admin_user, "/admin_unblock_room")
+    await notify_group(
+        "🔓 Meeting room unblocked by Admin\n\n"
+        f"📅 {block['booking_date'].strftime('%d/%m/%Y')}\n"
+        f"⏰ {block['start_time'].strftime('%H:%M')}–"
+        f"{block['end_time'].strftime('%H:%M')}\n\n"
+        f"{format_current_schedule()}"
+    )
+    return render_admin_dashboard(
+        request, admin_user, telegram_init_data, "Room block removed."
+    )
+
+
+@app.post("/admin/notice", response_class=HTMLResponse)
+async def admin_send_notice(
+    request: Request,
+    telegram_init_data: str = Form(...),
+    message: str = Form(...),
+):
+    admin_user = authenticate_admin(telegram_init_data)
+    message_text = message.strip()
+    if not message_text:
+        return render_admin_dashboard(
+            request,
+            admin_user,
+            telegram_init_data,
+            "Notice message cannot be empty.",
+            "error",
+        )
+    await notify_group(f"📣 Admin Notice\n\n{message_text[:3500]}")
+    record_activity(admin_user, "/admin_notice")
+    return render_admin_dashboard(
+        request, admin_user, telegram_init_data, "Group notice sent."
     )
