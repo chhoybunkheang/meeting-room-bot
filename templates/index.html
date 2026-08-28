@@ -7,7 +7,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-4">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-6">
 
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 
@@ -129,7 +129,7 @@
             <h2>New Booking</h2>
 
 
-            <form method="post" action="/book">
+            <form id="bookingCreationForm" method="post" action="/book">
 
                 <label>Your Name</label>
 
@@ -154,7 +154,7 @@
                 <input name="end_time" type="time" required>
 
 
-                <button type="submit" class="submit-button">
+                <button id="bookingSubmitButton" type="submit" class="submit-button">
                     Confirm Booking
                 </button>
 
@@ -175,6 +175,12 @@
 
         const bookingForm =
             document.getElementById("bookingForm");
+
+        const bookingCreationForm =
+            document.getElementById("bookingCreationForm");
+
+        const bookingSubmitButton =
+            document.getElementById("bookingSubmitButton");
 
         const openBookingButton =
             document.getElementById("openBookingButton");
@@ -306,6 +312,18 @@
                 openBookingButton.style.display =
                     "block";
 
+            }
+        );
+
+
+        bookingCreationForm.addEventListener(
+            "submit",
+            function () {
+                if (bookingSubmitButton.disabled) return;
+
+                bookingSubmitButton.disabled = true;
+                bookingSubmitButton.textContent =
+                    "Booking...";
             }
         );
 

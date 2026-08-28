@@ -349,29 +349,44 @@ async def create_booking(
     # -----------------------------------------------------
 
     with engine.begin() as conn:
-        overlap = conn.execute(
-            text("""
-                SELECT EXISTS (
-                    SELECT 1
+        overlap_booking = (
+            conn.execute(
+                text("""
+                    SELECT
+                        telegram_user_id,
+                        start_time,
+                        end_time
                     FROM bookings
-
                     WHERE booking_date = :booking_date
-
                       AND status = 'BOOKED'
-
                       AND start_time < :end_time
-
                       AND end_time > :start_time
-                )
-            """),
-            {
-                "booking_date": booking_date_value,
-                "start_time": start_time_value,
-                "end_time": end_time_value,
-            },
-        ).scalar()
+                    ORDER BY start_time
+                    LIMIT 1
+                """),
+                {
+                    "booking_date": booking_date_value,
+                    "start_time": start_time_value,
+                    "end_time": end_time_value,
+                },
+            )
+            .mappings()
+            .first()
+        )
 
-        if overlap:
+        if overlap_booking:
+            is_repeated_submission = (
+                overlap_booking["telegram_user_id"] == telegram_user_id
+                and overlap_booking["start_time"] == start_time_value
+                and overlap_booking["end_time"] == end_time_value
+            )
+
+            if is_repeated_submission:
+                return RedirectResponse(
+                    url="/",
+                    status_code=303,
+                )
+
             return HTMLResponse(
                 """
                 <h2>⚠️ Booking Conflict</h2>

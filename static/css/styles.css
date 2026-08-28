@@ -172,6 +172,11 @@ input {
     cursor: pointer;
 }
 
+.submit-button:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
+
 .end-booking-button {
     width: 100%;
     margin-top: 15px;
