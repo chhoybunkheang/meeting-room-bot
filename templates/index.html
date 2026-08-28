@@ -7,7 +7,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-2">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-3">
 
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 
@@ -22,19 +22,6 @@
 
         <div class="subtitle">
             Book and view the meeting room schedule.
-        </div>
-
-
-        <div class="user-box">
-
-            <div class="user-label">
-                Current User
-            </div>
-
-            <div id="currentUser" class="user-name">
-                Checking Telegram...
-            </div>
-
         </div>
 
 
@@ -171,9 +158,6 @@
         const closeBookingButton =
             document.getElementById("closeBookingButton");
 
-        const currentUser =
-            document.getElementById("currentUser");
-
         const displayName =
             document.getElementById("displayName");
 
@@ -239,9 +223,6 @@
                         .filter(Boolean)
                         .join(" ");
 
-                currentUser.textContent =
-                    fullName;
-
                 displayName.value =
                     fullName;
 
@@ -263,9 +244,6 @@
 
 
         function browserTestMode() {
-
-            currentUser.textContent =
-                "Browser Test Mode";
 
             displayName.value =
                 "Browser Test User";

@@ -7,7 +7,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-2">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-3">
 
 </head>
 
@@ -23,9 +23,11 @@
 
         {% for booking in bookings %}
 
-        <div class="booking-card">
+        <details class="booking-card">
 
-            <div class="booking-date">
+            <summary class="booking-summary">
+
+                <span class="booking-date">
 
                 {{
                 booking.booking_date.strftime(
@@ -33,9 +35,9 @@
                 )
                 }}
 
-            </div>
+                </span>
 
-            <div class="booking-time">
+                <span class="booking-time">
 
                 {{
                 booking.start_time.strftime(
@@ -51,7 +53,14 @@
                 )
                 }}
 
-            </div>
+                </span>
+
+                <span class="booking-tap-hint">Tap to manage</span>
+
+            </summary>
+
+            <div class="booking-actions">
+
             <form method="post" action="/cancel-booking" onsubmit="return confirm('Cancel this booking?');">
 
                 <input type="hidden" name="booking_id" value="{{ booking['id'] }}">
@@ -64,7 +73,13 @@
 
             </form>
 
-        </div>
+                <button type="button" class="booking-back-button">
+                    Back to My Bookings
+                </button>
+
+            </div>
+
+        </details>
 
         {% endfor %}
 
@@ -107,6 +122,27 @@
                     }
                 );
         }
+
+        document
+            .querySelectorAll(".booking-card")
+            .forEach(function (card) {
+                card.addEventListener("toggle", function () {
+                    if (!card.open) return;
+
+                    document
+                        .querySelectorAll(".booking-card[open]")
+                        .forEach(function (otherCard) {
+                            if (otherCard !== card) otherCard.open = false;
+                        });
+                });
+
+                card
+                    .querySelector(".booking-back-button")
+                    .addEventListener("click", function () {
+                        card.open = false;
+                        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                    });
+            });
 
     </script>
 

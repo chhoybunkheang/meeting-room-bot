@@ -22,25 +22,8 @@ h1 {
     margin-top: 0;
 }
 
-.subtitle,
-.user-label {
+.subtitle {
     color: #777;
-}
-
-.user-box {
-    margin-top: 15px;
-    padding: 12px;
-    border-radius: 10px;
-    background: #f5f5f5;
-}
-
-.user-label {
-    font-size: 12px;
-}
-
-.user-name {
-    margin-top: 3px;
-    font-weight: bold;
 }
 
 table {
@@ -123,10 +106,38 @@ input {
 }
 
 .booking-card {
+    display: block;
     margin-top: 15px;
-    padding: 15px;
     border: 1px solid #ddd;
     border-radius: 12px;
+    overflow: hidden;
+}
+
+.booking-summary {
+    position: relative;
+    display: grid;
+    gap: 5px;
+    padding: 15px 40px 15px 15px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.booking-summary::-webkit-details-marker {
+    display: none;
+}
+
+.booking-summary::after {
+    position: absolute;
+    top: 50%;
+    right: 17px;
+    content: "›";
+    font-size: 28px;
+    line-height: 1;
+    transform: translateY(-50%);
+}
+
+.booking-card[open] .booking-summary::after {
+    transform: translateY(-50%) rotate(90deg);
 }
 
 .booking-date {
@@ -135,8 +146,17 @@ input {
 }
 
 .booking-time {
-    margin-top: 5px;
     color: #555;
+}
+
+.booking-tap-hint {
+    color: #888;
+    font-size: 12px;
+}
+
+.booking-actions {
+    padding: 0 15px 15px;
+    border-top: 1px solid #eee;
 }
 
 .cancel-booking-button {
@@ -149,5 +169,17 @@ input {
     color: white;
     font-size: 15px;
     font-weight: bold;
+    cursor: pointer;
+}
+
+.booking-back-button {
+    width: 100%;
+    margin-top: 10px;
+    padding: 11px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    background: white;
+    color: #222;
+    font-size: 15px;
     cursor: pointer;
 }
