@@ -4,7 +4,7 @@ import json
 import logging
 import math
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import parse_qsl
 from zoneinfo import ZoneInfo
@@ -194,9 +194,21 @@ def validate_telegram_init_data(init_data: str):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request, page: int = 1):
+async def home(
+    request: Request,
+    page: int = 1,
+    view: str = "all",
+):
 
     page = max(page, 1)
+    schedule_filter = view if view in {"today", "tomorrow", "all"} else "all"
+    today = datetime.now(MEETING_TIMEZONE).date()
+    filter_date = today + timedelta(days=1) if schedule_filter == "tomorrow" else today
+    query_parameters = {
+        "today": today,
+        "schedule_filter": schedule_filter,
+        "filter_date": filter_date,
+    }
 
     with engine.connect() as conn:
         total_bookings = conn.execute(
@@ -204,8 +216,13 @@ async def home(request: Request, page: int = 1):
                 SELECT COUNT(*)
                 FROM bookings
                 WHERE status = 'BOOKED'
-                  AND booking_date >= CURRENT_DATE
-            """)
+                  AND booking_date >= :today
+                  AND (
+                      :schedule_filter = 'all'
+                      OR booking_date = :filter_date
+                  )
+            """),
+            query_parameters,
         ).scalar_one()
         total_pages = max(
             1,
@@ -225,11 +242,16 @@ async def home(request: Request, page: int = 1):
                         end_time
                     FROM bookings
                     WHERE status = 'BOOKED'
-                      AND booking_date >= CURRENT_DATE
+                      AND booking_date >= :today
+                      AND (
+                          :schedule_filter = 'all'
+                          OR booking_date = :filter_date
+                      )
                     ORDER BY booking_date, start_time
                     LIMIT :limit OFFSET :offset
                 """),
                 {
+                    **query_parameters,
                     "limit": BOOKINGS_PER_PAGE,
                     "offset": (page - 1) * BOOKINGS_PER_PAGE,
                 },
@@ -245,6 +267,7 @@ async def home(request: Request, page: int = 1):
             "bookings": bookings,
             "page": page,
             "total_pages": total_pages,
+            "schedule_filter": schedule_filter,
         },
     )
 

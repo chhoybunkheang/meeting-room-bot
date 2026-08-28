@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f4f7ff">
     <title>Meeting Room</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-8">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-9">
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 </head>
 
@@ -38,10 +38,17 @@
                         Current Schedule
                     </h2>
                 </div>
-                <span class="today-pill">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3m10-3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/></svg>
-                    Today
-                </span>
+                <nav class="schedule-filter" aria-label="Filter schedule by date">
+                    <a class="filter-option{% if schedule_filter == 'today' %} active{% endif %}"
+                        href="/?view=today"
+                        {% if schedule_filter == 'today' %}aria-current="page"{% endif %}>Today</a>
+                    <a class="filter-option{% if schedule_filter == 'tomorrow' %} active{% endif %}"
+                        href="/?view=tomorrow"
+                        {% if schedule_filter == 'tomorrow' %}aria-current="page"{% endif %}>Tomorrow</a>
+                    <a class="filter-option{% if schedule_filter == 'all' %} active{% endif %}"
+                        href="/?view=all"
+                        {% if schedule_filter == 'all' %}aria-current="page"{% endif %}>All</a>
+                </nav>
             </header>
 
             <div class="schedule-head" aria-hidden="true">
@@ -80,7 +87,11 @@
                 <div class="empty-state">
                     <div class="empty-icon" aria-hidden="true">✓</div>
                     <strong>The room is available</strong>
-                    <span>No upcoming bookings yet.</span>
+                    <span>
+                        {% if schedule_filter == 'today' %}No bookings for today.
+                        {% elif schedule_filter == 'tomorrow' %}No bookings for tomorrow.
+                        {% else %}No upcoming bookings yet.{% endif %}
+                    </span>
                 </div>
                 {% endif %}
             </div>
@@ -88,15 +99,15 @@
             {% if total_pages > 1 %}
             <nav class="pagination" aria-label="Schedule pages">
                 {% if page > 1 %}
-                <a class="page-link page-direction" href="/?page={{ page - 1 }}">Previous</a>
+                <a class="page-link page-direction" href="/?view={{ schedule_filter }}&page={{ page - 1 }}">Previous</a>
                 {% endif %}
                 {% for page_number in range(1, total_pages + 1) %}
                 <a class="page-link{% if page_number == page %} active{% endif %}"
-                    href="/?page={{ page_number }}"
+                    href="/?view={{ schedule_filter }}&page={{ page_number }}"
                     {% if page_number == page %}aria-current="page"{% endif %}>{{ page_number }}</a>
                 {% endfor %}
                 {% if page < total_pages %}
-                <a class="page-link page-direction" href="/?page={{ page + 1 }}">Next</a>
+                <a class="page-link page-direction" href="/?view={{ schedule_filter }}&page={{ page + 1 }}">Next</a>
                 {% endif %}
             </nav>
             {% endif %}

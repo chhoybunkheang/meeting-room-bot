@@ -206,22 +206,30 @@ h2 {
     color: var(--blue);
 }
 
-.today-pill {
+.schedule-filter {
     display: inline-flex;
     flex: 0 0 auto;
-    align-items: center;
-    gap: 7px;
-    padding: 10px 13px;
+    gap: 3px;
+    padding: 4px;
     border: 1px solid #dbe5ff;
-    border-radius: 12px;
-    background: var(--blue-soft);
-    color: var(--blue);
-    font-size: 14px;
-    font-weight: 700;
+    border-radius: 13px;
+    background: #f4f7ff;
 }
 
-.today-pill svg {
-    width: 18px;
+.filter-option {
+    padding: 8px 10px;
+    border-radius: 9px;
+    color: #6b7a97;
+    font-size: 12px;
+    font-weight: 750;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.filter-option.active {
+    background: white;
+    color: var(--blue);
+    box-shadow: 0 3px 10px rgba(47, 99, 245, 0.14);
 }
 
 .schedule-head {
@@ -776,6 +784,20 @@ input[readonly] {
         border-radius: 20px;
     }
 
+    .section-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .schedule-filter {
+        align-self: stretch;
+    }
+
+    .filter-option {
+        flex: 1;
+        text-align: center;
+    }
+
     .schedule-head {
         display: none;
     }
@@ -840,21 +862,12 @@ input[readonly] {
         line-height: 1.4;
     }
 
-    .section-header {
-        align-items: flex-end;
-    }
-
     .section-kicker {
         font-size: 9px;
     }
 
     .title-icon {
         width: 20px;
-    }
-
-    .today-pill {
-        padding: 8px 9px;
-        font-size: 12px;
     }
 
     .schedule-row {
