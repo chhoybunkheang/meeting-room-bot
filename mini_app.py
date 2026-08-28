@@ -68,6 +68,14 @@ MEETING_TIMEZONE = ZoneInfo(
 ROOM_BLOCK_PREFIX = "🔒 Room Blocked"
 
 
+def notification_first_name(user_name: str) -> str:
+    """Return a privacy-friendly name for Telegram group messages."""
+    normalized_name = (user_name or "").strip()
+    if normalized_name.startswith(ROOM_BLOCK_PREFIX):
+        return ROOM_BLOCK_PREFIX
+    return normalized_name.split(maxsplit=1)[0] if normalized_name else "User"
+
+
 def authenticate_admin(init_data: str) -> dict:
     """Validate Telegram Mini App data and require the configured admin."""
     try:
@@ -247,7 +255,7 @@ def format_current_schedule() -> str:
         f"{position}. {booking['booking_date'].strftime('%d/%m/%Y')} | "
         f"{booking['start_time'].strftime('%H:%M')}–"
         f"{booking['end_time'].strftime('%H:%M')} | "
-        f"{booking['user_name']}"
+        f"{notification_first_name(booking['user_name'])}"
         for position, booking in enumerate(bookings, start=1)
     )
 
@@ -602,7 +610,7 @@ async def create_booking(
 
     await notify_group(
         "📢 New booking\n\n"
-        f"👤 {user_name}\n"
+        f"👤 {notification_first_name(user_name)}\n"
         f"📅 {booking_date_value.strftime('%d/%m/%Y')}\n"
         f"⏰ {start_time_value.strftime('%H:%M')}–"
         f"{end_time_value.strftime('%H:%M')}\n\n"
@@ -764,7 +772,7 @@ async def cancel_booking(
 
     await notify_group(
         "🗑️ Booking cancelled\n\n"
-        f"👤 {booking['user_name']}\n"
+        f"👤 {notification_first_name(booking['user_name'])}\n"
         f"📅 {booking['booking_date'].strftime('%d/%m/%Y')}\n"
         f"⏰ {booking['start_time'].strftime('%H:%M')}–"
         f"{booking['end_time'].strftime('%H:%M')}\n\n"
@@ -900,7 +908,7 @@ async def end_booking(
 
     await notify_group(
         "✅ Meeting ended early — the room is now available\n\n"
-        f"👤 {booking['user_name']}\n"
+        f"👤 {notification_first_name(booking['user_name'])}\n"
         f"📅 {booking['booking_date'].strftime('%d/%m/%Y')}\n"
         f"⏰ Ended at {current_time.strftime('%H:%M')} "
         f"(scheduled until {booking['end_time'].strftime('%H:%M')})\n\n"
@@ -1139,7 +1147,7 @@ async def admin_add_booking(
     record_activity(admin_user, "/admin_add_booking")
     await notify_group(
         "📢 Booking added by Admin\n\n"
-        f"👤 {booking_name}\n"
+        f"👤 {notification_first_name(booking_name)}\n"
         f"📅 {date_value.strftime('%d/%m/%Y')}\n"
         f"⏰ {start_value.strftime('%H:%M')}–{end_value.strftime('%H:%M')}\n\n"
         f"{format_current_schedule()}"
@@ -1209,7 +1217,7 @@ async def admin_edit_booking(
     record_activity(admin_user, "/admin_edit_booking")
     await notify_group(
         "✏️ Booking updated by Admin\n\n"
-        f"👤 {booking['user_name']}\n"
+        f"👤 {notification_first_name(booking['user_name'])}\n"
         f"📅 {date_value.strftime('%d/%m/%Y')}\n"
         f"⏰ {start_value.strftime('%H:%M')}–{end_value.strftime('%H:%M')}\n\n"
         f"{format_current_schedule()}"
@@ -1238,7 +1246,7 @@ async def admin_cancel_booking(
     record_activity(admin_user, "/admin_cancel_booking")
     await notify_group(
         "🗑️ Booking cancelled by Admin\n\n"
-        f"👤 {booking['user_name']}\n"
+        f"👤 {notification_first_name(booking['user_name'])}\n"
         f"📅 {booking['booking_date'].strftime('%d/%m/%Y')}\n"
         f"⏰ {booking['start_time'].strftime('%H:%M')}–"
         f"{booking['end_time'].strftime('%H:%M')}\n\n"

@@ -1493,25 +1493,21 @@ async def auto_cleanup(
 
         return
 
-    message = "🧹 *Expired Schedule:*\n"
-
-    for item in removed:
-        message += f"• {item}\n"
-
+    message = "📋 *Current Schedule:*\n"
     if remaining_records:
-        message += "\n📋 *Updated Schedule:*\n"
-
         for row in remaining_records:
             date_text = row["booking_date"].strftime("%d/%m/%Y")
             time_text = (
                 f"{row['start_time'].strftime('%H:%M')}-"
                 f"{row['end_time'].strftime('%H:%M')}"
             )
+            user_name = (row["user_name"] or "User").strip()
+            first_name = user_name.split(maxsplit=1)[0]
 
-            message += f"{date_text} | {time_text} | {row['user_name']}\n"
+            message += f"{date_text} | {time_text} | {first_name}\n"
 
     else:
-        message += "\n✅ No meetings left."
+        message += "✅ No upcoming meetings."
 
     if context:
         try:
