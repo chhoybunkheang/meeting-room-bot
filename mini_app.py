@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import parse_qsl
 
 from dotenv import load_dotenv
@@ -43,9 +44,15 @@ engine = create_engine(
 
 app = FastAPI(title="Meeting Room Mini App")
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+BASE_DIR = Path(__file__).resolve().parent
 
-templates = Jinja2Templates(directory="templates")
+app.mount(
+    "/static",
+    StaticFiles(directory=BASE_DIR / "static"),
+    name="static",
+)
+
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
 async def notify_group(message: str) -> None:
