@@ -7,7 +7,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-4">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-5">
 
 </head>
 
@@ -61,11 +61,29 @@
 
             <div class="booking-actions">
 
+            {% if booking.booking_date == current_date
+                and booking.start_time <= current_time
+                and current_time < booking.end_time %}
+
+            <form method="post" action="/end-booking" onsubmit="return confirm('End this meeting early and release the room?');">
+
+                <input type="hidden" name="booking_id" value="{{ booking['id'] }}">
+
+                <input class="booking-init-data" type="hidden" name="telegram_init_data">
+
+                <button type="submit" class="end-booking-button">
+                    End Meeting Early
+                </button>
+
+            </form>
+
+            {% endif %}
+
             <form method="post" action="/cancel-booking" onsubmit="return confirm('Cancel this booking?');">
 
                 <input type="hidden" name="booking_id" value="{{ booking['id'] }}">
 
-                <input class="cancel-init-data" type="hidden" name="telegram_init_data">
+                <input class="booking-init-data" type="hidden" name="telegram_init_data">
 
                 <button type="submit" class="cancel-booking-button">
                     Cancel Booking
@@ -150,7 +168,7 @@
 
             document
                 .querySelectorAll(
-                    ".cancel-init-data, .pagination-init-data"
+                    ".booking-init-data, .pagination-init-data"
                 )
                 .forEach(
                     function (input) {

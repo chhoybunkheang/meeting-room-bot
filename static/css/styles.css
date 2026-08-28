@@ -172,6 +172,19 @@ input {
     cursor: pointer;
 }
 
+.end-booking-button {
+    width: 100%;
+    margin-top: 15px;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: #198754;
+    color: white;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
 .booking-back-button {
     width: 100%;
     margin-top: 10px;

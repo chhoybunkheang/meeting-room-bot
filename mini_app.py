@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import parse_qsl
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
@@ -57,6 +58,9 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 BOOKINGS_PER_PAGE = 10
 SCHEDULE_NOTIFICATION_LIMIT = 20
+MEETING_TIMEZONE = ZoneInfo(
+    os.getenv("MEETING_TIMEZONE", "Asia/Phnom_Penh")
+)
 
 
 def format_current_schedule() -> str:
@@ -449,6 +453,7 @@ async def my_bookings(
 
     telegram_user_id = telegram_user["id"]
     page = max(page, 1)
+    meeting_now = datetime.now(MEETING_TIMEZONE)
 
     with engine.connect() as conn:
         total_bookings = conn.execute(
@@ -500,6 +505,8 @@ async def my_bookings(
             "bookings": bookings,
             "page": page,
             "total_pages": total_pages,
+            "current_date": meeting_now.date(),
+            "current_time": meeting_now.time().replace(tzinfo=None),
         },
     )
 
@@ -618,6 +625,142 @@ async def cancel_booking(
         f"📅 {booking['booking_date'].strftime('%d/%m/%Y')}\n"
         f"⏰ {booking['start_time'].strftime('%H:%M')}–"
         f"{booking['end_time'].strftime('%H:%M')}\n\n"
+        f"{format_current_schedule()}"
+    )
+
+    return RedirectResponse(
+        url="/",
+        status_code=303,
+    )
+
+
+@app.post("/end-booking")
+async def end_booking(
+    telegram_init_data: str = Form(""),
+    booking_id: str = Form(""),
+):
+    if not telegram_init_data:
+        return HTMLResponse(
+            """
+            <h2>Authentication data missing</h2>
+            <p>Telegram initData was not submitted.</p>
+            <a href="/">Back</a>
+            """,
+            status_code=400,
+        )
+
+    try:
+        booking_id_value = int(booking_id)
+    except (TypeError, ValueError):
+        booking_id_value = 0
+
+    if booking_id_value <= 0:
+        return HTMLResponse(
+            """
+            <h2>Booking ID missing</h2>
+            <p>The booking ID was not submitted.</p>
+            <a href="/">Back</a>
+            """,
+            status_code=400,
+        )
+
+    try:
+        telegram_user = validate_telegram_init_data(telegram_init_data)
+    except ValueError as e:
+        return HTMLResponse(
+            f"""
+            <h2>Telegram authentication failed</h2>
+            <p>{e}</p>
+            <a href="/">Back</a>
+            """,
+            status_code=401,
+        )
+
+    telegram_user_id = telegram_user["id"]
+    meeting_now = datetime.now(MEETING_TIMEZONE)
+    current_date = meeting_now.date()
+    current_time = meeting_now.time().replace(tzinfo=None)
+
+    with engine.begin() as conn:
+        booking = (
+            conn.execute(
+                text("""
+                    SELECT
+                        id,
+                        telegram_user_id,
+                        user_name,
+                        booking_date,
+                        start_time,
+                        end_time,
+                        status
+                    FROM bookings
+                    WHERE id = :booking_id
+                """),
+                {"booking_id": booking_id_value},
+            )
+            .mappings()
+            .first()
+        )
+
+        if not booking:
+            return HTMLResponse(
+                """
+                <h2>Booking not found</h2>
+                <a href="/">Back</a>
+                """,
+                status_code=404,
+            )
+
+        if booking["telegram_user_id"] != telegram_user_id:
+            return HTMLResponse(
+                """
+                <h2>Not allowed</h2>
+                <p>You can only end your own meeting.</p>
+                <a href="/">Back</a>
+                """,
+                status_code=403,
+            )
+
+        if booking["status"] != "BOOKED":
+            return HTMLResponse(
+                """
+                <h2>Meeting is no longer active</h2>
+                <a href="/">Back</a>
+                """,
+                status_code=400,
+            )
+
+        is_active_meeting = (
+            booking["booking_date"] == current_date
+            and booking["start_time"] <= current_time
+            and current_time < booking["end_time"]
+        )
+        if not is_active_meeting:
+            return HTMLResponse(
+                """
+                <h2>Meeting cannot be ended now</h2>
+                <p>This action is only available during the booked time.</p>
+                <a href="/">Back</a>
+                """,
+                status_code=400,
+            )
+
+        conn.execute(
+            text("""
+                UPDATE bookings
+                SET status = 'ENDED'
+                WHERE id = :booking_id
+                  AND status = 'BOOKED'
+            """),
+            {"booking_id": booking_id_value},
+        )
+
+    await notify_group(
+        "✅ Meeting ended early — the room is now available\n\n"
+        f"👤 {booking['user_name']}\n"
+        f"📅 {booking['booking_date'].strftime('%d/%m/%Y')}\n"
+        f"⏰ Ended at {current_time.strftime('%H:%M')} "
+        f"(scheduled until {booking['end_time'].strftime('%H:%M')})\n\n"
         f"{format_current_schedule()}"
     )
 
