@@ -296,6 +296,21 @@ async def handle_day_selection(update: Update, context: ContextTypes.DEFAULT_TYP
 # ----------------- Get Date -----------------
 
 
+async def chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Reply with the numeric ID of the group where the command was sent."""
+    chat = update.effective_chat
+    message = update.effective_message
+
+    if chat is None or message is None:
+        return
+
+    if chat.type not in {"group", "supergroup"}:
+        await message.reply_text("Send /chatid inside the Telegram group.")
+        return
+
+    await message.reply_text(f"Group ID: {chat.id}")
+
+
 def _first_day_of_month(dt: datetime, add_months: int = 0) -> datetime:
     """Return the first day of the month offset by add_months."""
     year = dt.year + (dt.month - 1 + add_months) // 12
@@ -1331,6 +1346,7 @@ def main():
     # Define commands
     user_commands = [
         BotCommand("start", "Start"),
+        BotCommand("chatid", "Show this group's ID"),
         BotCommand("book", "Book room"),
         BotCommand("cancel", "Cancel booking"),
         BotCommand("end", "End the meeting"),
@@ -1416,6 +1432,7 @@ def main():
     )
 
     # Register handlers
+    app.add_handler(CommandHandler("chatid", chat_id))
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("start", start))
     app.add_handler(book_conv)
