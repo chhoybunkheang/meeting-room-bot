@@ -313,13 +313,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "👋 Welcome to the Meeting Room Bot!\n\n"
-        "Tap the button below to open the booking app.\n\n"
-        "Commands:\n"
-        "/book - Book the meeting room\n"
-        "/cancel - Cancel your booking\n"
-        "/end - End the active meeting\n"
-        "/docs - Download available documents\n"
-        "/topdf - Convert document/image to PDF\n\n"
+        "Use the Meeting Room app to:\n"
+        "• View the current room schedule\n"
+        "• Filter bookings by Today, Tomorrow, or All\n"
+        "• Book and manage your meetings\n"
+        "• Cancel a booking or end a meeting early\n\n"
+        "Tap the button below to get started. You can return here anytime "
+        "with /start.\n\n"
         f"ℹ️ Created by {admin_username}",
         reply_markup=mini_app_keyboard,
     )
