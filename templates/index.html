@@ -7,7 +7,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-3">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-4">
 
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 
@@ -76,7 +76,7 @@
 
                 <tr>
                     <td colspan="3">
-                        No bookings yet.
+                        No upcoming bookings.
                     </td>
                 </tr>
 
@@ -85,6 +85,30 @@
             </tbody>
 
         </table>
+
+        {% if total_pages > 1 %}
+
+        <nav class="pagination" aria-label="Schedule pages">
+
+            {% if page > 1 %}
+            <a class="page-link page-direction" href="/?page={{ page - 1 }}">Previous</a>
+            {% endif %}
+
+            {% for page_number in range(1, total_pages + 1) %}
+            <a class="page-link{% if page_number == page %} active{% endif %}"
+                href="/?page={{ page_number }}"
+                {% if page_number == page %}aria-current="page"{% endif %}>
+                {{ page_number }}
+            </a>
+            {% endfor %}
+
+            {% if page < total_pages %}
+            <a class="page-link page-direction" href="/?page={{ page + 1 }}">Next</a>
+            {% endif %}
+
+        </nav>
+
+        {% endif %}
 
 
         <button id="openBookingButton" type="button" class="book-button">

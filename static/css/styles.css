@@ -183,3 +183,42 @@ input {
     font-size: 15px;
     cursor: pointer;
 }
+
+.pagination {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 18px;
+}
+
+.pagination form {
+    margin: 0;
+}
+
+.page-link {
+    display: inline-flex;
+    min-width: 40px;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background: white;
+    color: #222;
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.page-link.active {
+    border-color: #222;
+    background: #222;
+    color: white;
+    cursor: default;
+}
+
+.page-direction {
+    min-width: auto;
+}

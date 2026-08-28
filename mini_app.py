@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import logging
+import math
 import os
 from datetime import datetime
 from pathlib import Path
@@ -53,6 +54,60 @@ app.mount(
 )
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+BOOKINGS_PER_PAGE = 10
+SCHEDULE_NOTIFICATION_LIMIT = 20
+
+
+def format_current_schedule() -> str:
+    """Build a compact upcoming schedule for group notifications."""
+    with engine.connect() as conn:
+        total_bookings = conn.execute(
+            text("""
+                SELECT COUNT(*)
+                FROM bookings
+                WHERE status = 'BOOKED'
+                  AND booking_date >= CURRENT_DATE
+            """)
+        ).scalar_one()
+
+        bookings = (
+            conn.execute(
+                text("""
+                    SELECT
+                        user_name,
+                        booking_date,
+                        start_time,
+                        end_time
+                    FROM bookings
+                    WHERE status = 'BOOKED'
+                      AND booking_date >= CURRENT_DATE
+                    ORDER BY booking_date, start_time
+                    LIMIT :limit
+                """),
+                {"limit": SCHEDULE_NOTIFICATION_LIMIT},
+            )
+            .mappings()
+            .all()
+        )
+
+    if not bookings:
+        return "📋 Current Schedule\nNo upcoming bookings."
+
+    schedule_lines = ["📋 Current Schedule"]
+    schedule_lines.extend(
+        f"{position}. {booking['booking_date'].strftime('%d/%m/%Y')} | "
+        f"{booking['start_time'].strftime('%H:%M')}–"
+        f"{booking['end_time'].strftime('%H:%M')} | "
+        f"{booking['user_name']}"
+        for position, booking in enumerate(bookings, start=1)
+    )
+
+    remaining = total_bookings - len(bookings)
+    if remaining > 0:
+        schedule_lines.append(f"…and {remaining} more upcoming booking(s).")
+
+    return "\n".join(schedule_lines)
 
 
 async def notify_group(message: str) -> None:
@@ -135,9 +190,25 @@ def validate_telegram_init_data(init_data: str):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
+async def home(request: Request, page: int = 1):
+
+    page = max(page, 1)
 
     with engine.connect() as conn:
+        total_bookings = conn.execute(
+            text("""
+                SELECT COUNT(*)
+                FROM bookings
+                WHERE status = 'BOOKED'
+                  AND booking_date >= CURRENT_DATE
+            """)
+        ).scalar_one()
+        total_pages = max(
+            1,
+            math.ceil(total_bookings / BOOKINGS_PER_PAGE),
+        )
+        page = min(page, total_pages)
+
         bookings = (
             conn.execute(
                 text("""
@@ -150,8 +221,14 @@ async def home(request: Request):
                         end_time
                     FROM bookings
                     WHERE status = 'BOOKED'
+                      AND booking_date >= CURRENT_DATE
                     ORDER BY booking_date, start_time
-                """)
+                    LIMIT :limit OFFSET :offset
+                """),
+                {
+                    "limit": BOOKINGS_PER_PAGE,
+                    "offset": (page - 1) * BOOKINGS_PER_PAGE,
+                },
             )
             .mappings()
             .all()
@@ -162,6 +239,8 @@ async def home(request: Request):
         name="index.html",
         context={
             "bookings": bookings,
+            "page": page,
+            "total_pages": total_pages,
         },
     )
 
@@ -339,7 +418,8 @@ async def create_booking(
         f"👤 {user_name}\n"
         f"📅 {booking_date_value.strftime('%d/%m/%Y')}\n"
         f"⏰ {start_time_value.strftime('%H:%M')}–"
-        f"{end_time_value.strftime('%H:%M')}"
+        f"{end_time_value.strftime('%H:%M')}\n\n"
+        f"{format_current_schedule()}"
     )
 
     return RedirectResponse(
@@ -352,6 +432,7 @@ async def create_booking(
 async def my_bookings(
     request: Request,
     telegram_init_data: str = Form(...),
+    page: int = Form(1),
 ):
     try:
         telegram_user = validate_telegram_init_data(telegram_init_data)
@@ -367,8 +448,25 @@ async def my_bookings(
         )
 
     telegram_user_id = telegram_user["id"]
+    page = max(page, 1)
 
     with engine.connect() as conn:
+        total_bookings = conn.execute(
+            text("""
+                SELECT COUNT(*)
+                FROM bookings
+                WHERE telegram_user_id = :telegram_user_id
+                  AND status = 'BOOKED'
+                  AND booking_date >= CURRENT_DATE
+            """),
+            {"telegram_user_id": telegram_user_id},
+        ).scalar_one()
+        total_pages = max(
+            1,
+            math.ceil(total_bookings / BOOKINGS_PER_PAGE),
+        )
+        page = min(page, total_pages)
+
         bookings = (
             conn.execute(
                 text("""
@@ -381,10 +479,14 @@ async def my_bookings(
                     FROM bookings
                     WHERE telegram_user_id = :telegram_user_id
                       AND status = 'BOOKED'
+                      AND booking_date >= CURRENT_DATE
                     ORDER BY booking_date, start_time
+                    LIMIT :limit OFFSET :offset
                 """),
                 {
                     "telegram_user_id": telegram_user_id,
+                    "limit": BOOKINGS_PER_PAGE,
+                    "offset": (page - 1) * BOOKINGS_PER_PAGE,
                 },
             )
             .mappings()
@@ -396,6 +498,8 @@ async def my_bookings(
         name="my_bookings.html",
         context={
             "bookings": bookings,
+            "page": page,
+            "total_pages": total_pages,
         },
     )
 
@@ -513,7 +617,8 @@ async def cancel_booking(
         f"👤 {booking['user_name']}\n"
         f"📅 {booking['booking_date'].strftime('%d/%m/%Y')}\n"
         f"⏰ {booking['start_time'].strftime('%H:%M')}–"
-        f"{booking['end_time'].strftime('%H:%M')}"
+        f"{booking['end_time'].strftime('%H:%M')}\n\n"
+        f"{format_current_schedule()}"
     )
 
     return RedirectResponse(
