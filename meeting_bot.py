@@ -1744,33 +1744,21 @@ def main():
         except Exception as e:
             print(f"⚠️ Could not initialize job queue: {e}")
 
-    # Define commands
+    # Keep the Telegram command menu minimal. Other handlers remain available
+    # when users type their commands directly.
     user_commands = [
         BotCommand("start", "Start"),
-        BotCommand("chatid", "Show this group's ID"),
-        BotCommand("book", "Book room"),
-        BotCommand("cancel", "Cancel booking"),
-        BotCommand("end", "End the meeting"),
-        BotCommand("docs", "Download documents"),
-        BotCommand("topdf", "Convert file to PDF"),
     ]
 
-    admin_commands = user_commands + [
-        BotCommand("announce", "Announcement"),
-        BotCommand("stats", "Statistics"),
-        BotCommand("clean", "Clean up expired"),
-        BotCommand("uploaddoc", "Upload file"),
-    ]
-
-    # Set commands with proper scopes
+    # Reset the previous admin-specific menu so it inherits the default menu.
     async def set_commands(application):
         await application.bot.set_my_commands(
             user_commands, scope=BotCommandScopeDefault()
         )
-        await application.bot.set_my_commands(
-            admin_commands, scope=BotCommandScopeChat(ADMIN_ID)
+        await application.bot.delete_my_commands(
+            scope=BotCommandScopeChat(ADMIN_ID)
         )
-        print("✅ Command menus set for users and admin.")
+        print("✅ Command menu set to /start only.")
 
         # Clear webhook safely
         await clear_webhook(TOKEN)
