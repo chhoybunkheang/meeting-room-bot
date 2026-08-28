@@ -240,3 +240,61 @@ input {
 .page-direction {
     min-width: auto;
 }
+
+.status-page {
+    text-align: center;
+}
+
+.status-icon {
+    display: grid;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    place-items: center;
+    border-radius: 50%;
+    background: #fff3cd;
+    font-size: 32px;
+}
+
+.status-message {
+    margin-bottom: 20px;
+    color: #666;
+    line-height: 1.5;
+}
+
+.conflict-details {
+    display: grid;
+    gap: 12px;
+    text-align: left;
+}
+
+.conflict-slot {
+    padding: 14px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background: #fafafa;
+}
+
+.conflict-slot.existing {
+    border-color: #f1b8bd;
+    background: #fff5f5;
+}
+
+.conflict-label {
+    margin-bottom: 6px;
+    color: #777;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.conflict-time {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.conflict-owner {
+    margin-top: 5px;
+    color: #555;
+}

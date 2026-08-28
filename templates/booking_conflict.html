@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>Booking Conflict</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-7">
+
+    <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
+
+</head>
+
+<body>
+
+    <main class="container status-page">
+
+        <div class="status-icon" aria-hidden="true">⚠️</div>
+
+        <h1>Time Not Available</h1>
+
+        <p class="status-message">
+            Your requested time overlaps with an existing booking.
+            Please choose another time.
+        </p>
+
+        <div class="conflict-details">
+
+            <section class="conflict-slot">
+                <div class="conflict-label">Your request</div>
+                <div class="booking-date">{{ booking_date.strftime("%d/%m/%Y") }}</div>
+                <div class="conflict-time">
+                    {{ requested_start_time.strftime("%H:%M") }}–{{ requested_end_time.strftime("%H:%M") }}
+                </div>
+            </section>
+
+            <section class="conflict-slot existing">
+                <div class="conflict-label">Existing booking</div>
+                <div class="conflict-time">
+                    {{ conflicting_start_time.strftime("%H:%M") }}–{{ conflicting_end_time.strftime("%H:%M") }}
+                </div>
+                <div class="conflict-owner">Booked by {{ conflicting_user_name }}</div>
+            </section>
+
+        </div>
+
+        <button type="button" class="back-button" onclick="window.location.href='/'">
+            Back to Schedule
+        </button>
+
+    </main>
+
+    <script>
+        const tg = window.Telegram?.WebApp;
+        if (tg) {
+            tg.ready();
+            tg.expand();
+        }
+    </script>
+
+</body>
+
+</html>

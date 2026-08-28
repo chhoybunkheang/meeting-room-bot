@@ -256,6 +256,7 @@ async def home(request: Request, page: int = 1):
 
 @app.post("/book")
 async def create_booking(
+    request: Request,
     telegram_init_data: str = Form(...),
     booking_date: str = Form(...),
     start_time: str = Form(...),
@@ -354,6 +355,7 @@ async def create_booking(
                 text("""
                     SELECT
                         telegram_user_id,
+                        user_name,
                         start_time,
                         end_time
                     FROM bookings
@@ -387,19 +389,17 @@ async def create_booking(
                     status_code=303,
                 )
 
-            return HTMLResponse(
-                """
-                <h2>⚠️ Booking Conflict</h2>
-
-                <p>
-                    This time overlaps with
-                    another booking.
-                </p>
-
-                <a href="/">
-                    Back to schedule
-                </a>
-                """,
+            return templates.TemplateResponse(
+                request=request,
+                name="booking_conflict.html",
+                context={
+                    "booking_date": booking_date_value,
+                    "requested_start_time": start_time_value,
+                    "requested_end_time": end_time_value,
+                    "conflicting_user_name": overlap_booking["user_name"],
+                    "conflicting_start_time": overlap_booking["start_time"],
+                    "conflicting_end_time": overlap_booking["end_time"],
+                },
                 status_code=409,
             )
 
