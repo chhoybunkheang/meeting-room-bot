@@ -1,335 +1,244 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f4f7ff">
     <title>Meeting Room</title>
-
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-
-    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-6">
-
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-8">
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
-
 </head>
 
-
 <body>
+    <main class="app-shell">
+        <section class="hero-card" aria-labelledby="appTitle">
+            <div class="hero-decoration hero-decoration-one"></div>
+            <div class="hero-decoration hero-decoration-two"></div>
+            <div class="hero-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M7 3v3m10-3v3M4.5 9h15M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm3 11c.7-1.5 1.7-2.2 3-2.2s2.3.7 3 2.2m-1-5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/></svg>
+            </div>
+            <div class="hero-copy">
+                <span class="eyebrow">Workspace booking</span>
+                <h1 id="appTitle">Meeting Room</h1>
+                <p>Book the room and see when it is available.</p>
+            </div>
+        </section>
 
-    <div class="container">
-
-        <h1>Meeting Room</h1>
-
-        <div class="subtitle">
-            Book and view the meeting room schedule.
+        <div id="telegramWarning" class="telegram-warning" role="status">
+            Telegram user was not detected. Browser test mode is active.
         </div>
 
+        <section class="schedule-card" aria-labelledby="scheduleTitle">
+            <header class="section-header">
+                <div>
+                    <span class="section-kicker">Room availability</span>
+                    <h2 id="scheduleTitle">
+                        <svg class="title-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3m10-3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/></svg>
+                        Current Schedule
+                    </h2>
+                </div>
+                <span class="today-pill">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3m10-3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/></svg>
+                    Today
+                </span>
+            </header>
 
-        <div id="telegramWarning" class="telegram-warning">
-            Telegram user was not detected.
-            Browser test mode is active.
-        </div>
+            <div class="schedule-head" aria-hidden="true">
+                <span>Date</span>
+                <span>Time</span>
+                <span>Booked By</span>
+            </div>
 
-
-        <h2>Current Schedule</h2>
-
-
-        <table>
-
-            <thead>
-
-                <tr>
-                    <th>Date</th>
-                    <th>Time</th>
-                    <th>Booked By</th>
-                </tr>
-
-            </thead>
-
-            <tbody>
-
+            <div class="schedule-list">
                 {% if bookings %}
-
                 {% for booking in bookings %}
+                <article class="schedule-row" data-booking-date="{{ booking.booking_date.strftime('%Y-%m-%d') }}">
+                    <div class="schedule-date">
+                        <div class="date-badge" aria-hidden="true">
+                            <span>{{ booking.booking_date.strftime("%b") }}</span>
+                            <strong>{{ booking.booking_date.strftime("%d") }}</strong>
+                        </div>
+                        <div class="date-copy">
+                            <strong>{{ booking.booking_date.strftime("%d/%m/%Y") }}</strong>
+                            <span class="relative-date">{{ booking.booking_date.strftime("%A") }}</span>
+                        </div>
+                    </div>
 
-                <tr>
+                    <div class="schedule-time">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                        <span>{{ booking.start_time.strftime("%H:%M") }}–{{ booking.end_time.strftime("%H:%M") }}</span>
+                    </div>
 
-                    <td>
-                        {{ booking.booking_date.strftime("%d/%m/%Y") }}
-                    </td>
-
-                    <td>
-                        {{ booking.start_time.strftime("%H:%M") }}
-                        -
-                        {{ booking.end_time.strftime("%H:%M") }}
-                    </td>
-
-                    <td>
-                        {{ booking.user_name }}
-                    </td>
-
-                </tr>
-
+                    <div class="schedule-person" data-user-name="{{ booking.user_name|e }}">
+                        <span class="user-avatar" aria-hidden="true"></span>
+                        <span class="user-display-name">{{ booking.user_name }}</span>
+                    </div>
+                </article>
                 {% endfor %}
-
                 {% else %}
-
-                <tr>
-                    <td colspan="3">
-                        No upcoming bookings.
-                    </td>
-                </tr>
-
+                <div class="empty-state">
+                    <div class="empty-icon" aria-hidden="true">✓</div>
+                    <strong>The room is available</strong>
+                    <span>No upcoming bookings yet.</span>
+                </div>
                 {% endif %}
+            </div>
 
-            </tbody>
-
-        </table>
-
-        {% if total_pages > 1 %}
-
-        <nav class="pagination" aria-label="Schedule pages">
-
-            {% if page > 1 %}
-            <a class="page-link page-direction" href="/?page={{ page - 1 }}">Previous</a>
+            {% if total_pages > 1 %}
+            <nav class="pagination" aria-label="Schedule pages">
+                {% if page > 1 %}
+                <a class="page-link page-direction" href="/?page={{ page - 1 }}">Previous</a>
+                {% endif %}
+                {% for page_number in range(1, total_pages + 1) %}
+                <a class="page-link{% if page_number == page %} active{% endif %}"
+                    href="/?page={{ page_number }}"
+                    {% if page_number == page %}aria-current="page"{% endif %}>{{ page_number }}</a>
+                {% endfor %}
+                {% if page < total_pages %}
+                <a class="page-link page-direction" href="/?page={{ page + 1 }}">Next</a>
+                {% endif %}
+            </nav>
             {% endif %}
 
-            {% for page_number in range(1, total_pages + 1) %}
-            <a class="page-link{% if page_number == page %} active{% endif %}"
-                href="/?page={{ page_number }}"
-                {% if page_number == page %}aria-current="page"{% endif %}>
-                {{ page_number }}
-            </a>
-            {% endfor %}
+            <div class="primary-actions">
+                <button id="openBookingButton" type="button" class="book-button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3m10-3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm6 8v6m-3-3h6"/></svg>
+                    Book a Meeting Room
+                </button>
+                <form method="post" action="/my-bookings">
+                    <input id="myBookingsInitData" name="telegram_init_data" type="hidden">
+                    <button type="submit" class="my-bookings-button">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20v-2a7 7 0 0 1 14 0v2M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/></svg>
+                        My Bookings
+                    </button>
+                </form>
+            </div>
+        </section>
 
-            {% if page < total_pages %}
-            <a class="page-link page-direction" href="/?page={{ page + 1 }}">Next</a>
-            {% endif %}
-
-        </nav>
-
-        {% endif %}
-
-
-        <button id="openBookingButton" type="button" class="book-button">
-            + Book Meeting Room
-        </button>
-        <form method="post" action="/my-bookings">
-
-            <input id="myBookingsInitData" name="telegram_init_data" type="hidden">
-
-            <button type="submit" class="cancel-button">
-                My Bookings
-            </button>
-
-        </form>
-
-        <div id="bookingForm" class="form-panel">
-
-            <h2>New Booking</h2>
-
+        <section id="bookingForm" class="form-panel" aria-labelledby="bookingFormTitle">
+            <div class="form-heading">
+                <div>
+                    <span class="section-kicker">Reserve your time</span>
+                    <h2 id="bookingFormTitle">New Booking</h2>
+                </div>
+                <button id="closeBookingButton" type="button" class="icon-button" aria-label="Close booking form">×</button>
+            </div>
 
             <form id="bookingCreationForm" method="post" action="/book">
-
-                <label>Your Name</label>
-
+                <label for="displayName">Your Name</label>
                 <input id="displayName" type="text" readonly>
-
-
                 <input id="telegramInitData" name="telegram_init_data" type="hidden">
 
-
-                <label>Date</label>
-
+                <label for="bookingDate">Date</label>
                 <input id="bookingDate" name="booking_date" type="date" required>
 
+                <div class="time-fields">
+                    <div>
+                        <label for="startTime">Start Time</label>
+                        <input id="startTime" name="start_time" type="time" required>
+                    </div>
+                    <div>
+                        <label for="endTime">End Time</label>
+                        <input id="endTime" name="end_time" type="time" required>
+                    </div>
+                </div>
 
-                <label>Start Time</label>
-
-                <input name="start_time" type="time" required>
-
-
-                <label>End Time</label>
-
-                <input name="end_time" type="time" required>
-
-
-                <button id="bookingSubmitButton" type="submit" class="submit-button">
-                    Confirm Booking
-                </button>
-
-
-                <button id="closeBookingButton" type="button" class="cancel-button">
-                    Cancel
-                </button>
-
+                <button id="bookingSubmitButton" type="submit" class="submit-button">Confirm Booking</button>
+                <button type="button" class="cancel-button" data-close-booking>Cancel</button>
             </form>
+        </section>
 
-        </div>
-
-    </div>
-
+        <footer class="app-footer">
+            <span class="telegram-mark" aria-hidden="true">➤</span>
+            @KHEANG_C_BOT
+        </footer>
+    </main>
 
     <script>
-
-
-        const bookingForm =
-            document.getElementById("bookingForm");
-
-        const bookingCreationForm =
-            document.getElementById("bookingCreationForm");
-
-        const bookingSubmitButton =
-            document.getElementById("bookingSubmitButton");
-
-        const openBookingButton =
-            document.getElementById("openBookingButton");
-
-        const closeBookingButton =
-            document.getElementById("closeBookingButton");
-
-        const displayName =
-            document.getElementById("displayName");
-
-        const telegramWarning =
-            document.getElementById("telegramWarning");
-
-        const bookingDate =
-            document.getElementById("bookingDate");
-
-        const telegramInitData =
-            document.getElementById("telegramInitData");
-        const myBookingsInitData =
-            document.getElementById(
-                "myBookingsInitData"
-            );
-
-
-        // Prevent selecting past dates
+        const bookingForm = document.getElementById("bookingForm");
+        const bookingCreationForm = document.getElementById("bookingCreationForm");
+        const bookingSubmitButton = document.getElementById("bookingSubmitButton");
+        const openBookingButton = document.getElementById("openBookingButton");
+        const closeBookingButtons = document.querySelectorAll("#closeBookingButton, [data-close-booking]");
+        const displayName = document.getElementById("displayName");
+        const telegramWarning = document.getElementById("telegramWarning");
+        const bookingDate = document.getElementById("bookingDate");
+        const telegramInitData = document.getElementById("telegramInitData");
+        const myBookingsInitData = document.getElementById("myBookingsInitData");
 
         const today = new Date();
-
+        today.setHours(0, 0, 0, 0);
         const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, "0");
+        const dd = String(today.getDate()).padStart(2, "0");
+        bookingDate.min = `${yyyy}-${mm}-${dd}`;
 
-        const mm =
-            String(today.getMonth() + 1)
-                .padStart(2, "0");
+        document.querySelectorAll(".schedule-row").forEach(function (row) {
+            const dateParts = row.dataset.bookingDate.split("-").map(Number);
+            const bookingDay = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+            const dayDifference = Math.round((bookingDay - today) / 86400000);
+            const dateLabel = row.querySelector(".relative-date");
+            if (dayDifference === 0) dateLabel.textContent = "Today";
+            else if (dayDifference === 1) dateLabel.textContent = "Tomorrow";
+            else dateLabel.textContent = bookingDay.toLocaleDateString(undefined, { weekday: "long" });
 
-        const dd =
-            String(today.getDate())
-                .padStart(2, "0");
+            const person = row.querySelector(".schedule-person");
+            const initials = person.dataset.userName
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map(function (part) { return part.charAt(0).toUpperCase(); })
+                .join("") || "U";
+            person.querySelector(".user-avatar").textContent = initials;
+        });
 
-        bookingDate.min =
-            `${yyyy}-${mm}-${dd}`;
-
-
-        // Telegram Mini App user detection
-
-        const tg =
-            window.Telegram?.WebApp;
-
-
+        const tg = window.Telegram?.WebApp;
         if (tg) {
-
             tg.ready();
             tg.expand();
-
-            const user =
-                tg.initDataUnsafe?.user;
-
-            // Send Telegram's signed initData to FastAPI
-            telegramInitData.value =
-                tg.initData || "";
-            myBookingsInitData.value =
-                tg.initData || "";
-
+            const user = tg.initDataUnsafe?.user;
+            telegramInitData.value = tg.initData || "";
+            myBookingsInitData.value = tg.initData || "";
             if (user) {
-
-                const fullName =
-                    [
-                        user.first_name,
-                        user.last_name
-                    ]
-                        .filter(Boolean)
-                        .join(" ");
-
-                displayName.value =
-                    fullName;
-
-            }
-
-            else {
-
+                displayName.value = [user.first_name, user.last_name].filter(Boolean).join(" ");
+            } else {
                 browserTestMode();
-
             }
-
-        }
-
-        else {
-
+        } else {
             browserTestMode();
-
         }
-
 
         function browserTestMode() {
-
-            displayName.value =
-                "Browser Test User";
-
-            telegramInitData.value =
-                "";
-
-            telegramWarning.style.display =
-                "block";
+            displayName.value = "Browser Test User";
+            telegramInitData.value = "";
             myBookingsInitData.value = "";
-
+            telegramWarning.style.display = "block";
         }
 
+        function showBookingForm() {
+            bookingForm.style.display = "block";
+            bookingForm.scrollIntoView({ behavior: "smooth", block: "start" });
+            openBookingButton.setAttribute("aria-expanded", "true");
+        }
 
-        openBookingButton.addEventListener(
-            "click",
-            function () {
+        function hideBookingForm() {
+            bookingForm.style.display = "none";
+            openBookingButton.setAttribute("aria-expanded", "false");
+        }
 
-                bookingForm.style.display =
-                    "block";
+        openBookingButton.setAttribute("aria-controls", "bookingForm");
+        openBookingButton.setAttribute("aria-expanded", "false");
+        openBookingButton.addEventListener("click", showBookingForm);
+        closeBookingButtons.forEach(function (button) { button.addEventListener("click", hideBookingForm); });
 
-                openBookingButton.style.display =
-                    "none";
-
-            }
-        );
-
-
-        closeBookingButton.addEventListener(
-            "click",
-            function () {
-
-                bookingForm.style.display =
-                    "none";
-
-                openBookingButton.style.display =
-                    "block";
-
-            }
-        );
-
-
-        bookingCreationForm.addEventListener(
-            "submit",
-            function () {
-                if (bookingSubmitButton.disabled) return;
-
-                bookingSubmitButton.disabled = true;
-                bookingSubmitButton.textContent =
-                    "Booking...";
-            }
-        );
-
+        bookingCreationForm.addEventListener("submit", function () {
+            if (bookingSubmitButton.disabled) return;
+            bookingSubmitButton.disabled = true;
+            bookingSubmitButton.textContent = "Booking...";
+        });
     </script>
-
-
 </body>
 
 </html>
