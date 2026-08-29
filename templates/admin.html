@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f9fd">
     <title>Admin Panel · B03 Meeting Room</title>
     <link rel="stylesheet" href="/static/css/styles.css?v=20260829-1">
-    <link rel="stylesheet" href="/static/css/admin.css?v=20260829-6">
+    <link rel="stylesheet" href="/static/css/admin.css?v=20260829-7">
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 </head>
 <body class="admin-body">
@@ -41,7 +41,7 @@
     {% endfor %}
     {% set report_users = recent_activity|groupby('user_name')|list %}
     {% set report_commands = recent_activity|groupby('command')|list %}
-    <section id="reportsView" class="admin-reports" aria-labelledby="reportsTitle">
+    <section id="reportsView" class="admin-reports" aria-labelledby="reportsTitle" hidden>
         <div class="reports-heading">
             <div><span>B03 Meeting Room</span><h2 id="reportsTitle">Reports</h2><p>Insights from current bookings and recent user activity.</p></div>
             <button class="report-date-filter" type="button" aria-label="Current report period; visual filter only"><span aria-hidden="true">▣</span><strong>Latest activity</strong><i aria-hidden="true">⌄</i></button>
@@ -116,7 +116,7 @@
             <button type="button" class="quick-action blue" data-open-panel="addBookingPanel"><span>+</span><strong>New Booking</strong><small>Create a new booking</small></button>
             <a class="quick-action green" href="#upcomingBookings"><span>▣</span><strong>Manage Bookings</strong><small>View and manage all bookings</small></a>
             <button type="button" class="quick-action orange" data-open-panel="noticePanel"><span>⌁</span><strong>Announcement</strong><small>Send announcement to group</small></button>
-            <a class="quick-action purple static-action" href="#reportsView"><span>▥</span><strong>Reports</strong><small>View reports and analytics</small></a>
+            <a class="quick-action purple static-action" href="#reportsView" data-admin-tab="reports"><span>▥</span><strong>Reports</strong><small>View reports and analytics</small></a>
         </div>
     </section>
 
@@ -155,7 +155,7 @@
     <section id="unblockRoomPanel" class="admin-card admin-panel" hidden><div class="admin-section-heading"><h2>Active Room Blocks</h2><button type="button" data-close-panel>×</button></div>{% if room_blocks %}<div class="block-list">{% for block in room_blocks %}<form method="post" action="/admin/blocks/remove" onsubmit="return confirm('Remove this room block?');"><input class="admin-init-data" type="hidden" name="telegram_init_data" value="{{ telegram_init_data }}"><input type="hidden" name="booking_id" value="{{ block.id }}"><div><strong>{{ block.booking_date.strftime('%d/%m/%Y') }}</strong><span>{{ block.start_time.strftime('%H:%M') }}–{{ block.end_time.strftime('%H:%M') }}</span><small>{{ block.user_name }}</small></div><button type="submit" class="admin-warning">Unblock</button></form>{% endfor %}</div>{% else %}<p class="admin-empty">There are no active room blocks.</p>{% endif %}</section>
 
     <nav class="admin-bottom-nav" aria-label="Admin navigation">
-        <a href="#welcomeTitle"><span>◇</span>Dashboard</a><a href="#upcomingBookings"><span>▣</span>Bookings</a><a href="#roomTools"><span>▥</span>Rooms</a><a class="active" href="#reportsView" aria-current="page"><span>▥</span>Reports</a><a href="#roomTools"><span>⚙</span>Settings</a>
+        <a class="active" href="#welcomeTitle" data-admin-tab="dashboard" aria-current="page"><span>◇</span>Dashboard</a><a href="#upcomingBookings" data-admin-tab="bookings"><span>▣</span>Bookings</a><a href="#roomTools" data-admin-tab="rooms"><span>▥</span>Rooms</a><a href="#reportsView" data-admin-tab="reports"><span>▥</span>Reports</a><a href="#roomTools" data-admin-tab="settings"><span>⚙</span>Settings</a>
     </nav>
     <footer class="admin-footer">@{{ bot_username }}</footer>
 </main>
@@ -166,6 +166,7 @@ document.querySelectorAll('[data-close-panel]').forEach((button)=>button.addEven
 document.querySelectorAll('[data-edit-booking]').forEach((button)=>button.addEventListener('click',()=>{const form=document.getElementById('editBooking'+button.dataset.editBooking);if(form)form.hidden=!form.hidden;}));
 document.querySelectorAll('[data-close-edit]').forEach((button)=>button.addEventListener('click',()=>button.closest('.inline-edit').hidden=true));
 document.querySelectorAll('.admin-booking-row').forEach((row)=>{const initials=row.dataset.userName.trim().split(/\s+/).filter(Boolean).slice(0,2).map((part)=>part[0].toUpperCase()).join('')||'U';const avatar=row.querySelector('.admin-avatar');if(avatar)avatar.textContent=initials;});
+const adminReportView=document.getElementById('reportsView');const adminNavLinks=[...document.querySelectorAll('.admin-bottom-nav [data-admin-tab]')];function selectAdminTab(tab){if(adminReportView)adminReportView.hidden=tab!=='reports';adminNavLinks.forEach((link)=>{const selected=link.dataset.adminTab===tab;link.classList.toggle('active',selected);if(selected)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});}document.querySelectorAll('[data-admin-tab]').forEach((link)=>link.addEventListener('click',(event)=>{const tab=link.dataset.adminTab;selectAdminTab(tab);if(tab==='reports'){event.preventDefault();adminReportView?.scrollIntoView({behavior:'smooth',block:'start'});}}));selectAdminTab('dashboard');
 </script>
 </body>
 </html>
