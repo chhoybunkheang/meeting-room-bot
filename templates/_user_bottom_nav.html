@@ -1,7 +1,8 @@
 <nav class="user-bottom-nav" aria-label="Main navigation">
     <a class="{% if active_tab == 'schedules' %}active{% endif %}" href="/"
         {% if active_tab == 'schedules' %}aria-current="page"{% endif %}>
-        <span aria-hidden="true">▣</span>Schedules
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3m10-3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/><path d="m9 15 2 2 4-4"/></svg>
+        Schedules
     </a>
     <form method="post" action="/my-bookings">
         <input{% if my_booking_input_id %} id="{{ my_booking_input_id }}"{% endif %}
@@ -9,22 +10,26 @@
             name="telegram_init_data" type="hidden">
         <button class="{% if active_tab == 'my_booking' %}active{% endif %}" type="submit"
             {% if active_tab == 'my_booking' %}aria-current="page"{% endif %}>
-            <span aria-hidden="true">▣</span>My Booking
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3m10-3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/><path d="M9 14h6m-6 3h4"/></svg>
+            My Booking
         </button>
     </form>
     {% if tools_local %}
     <button id="openToolsButton" class="{% if active_tab == 'tools' %}active{% endif %}" type="button"
         {% if active_tab == 'tools' %}aria-current="page"{% endif %}>
-        <span aria-hidden="true">▤</span>Tools
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4zM9 8V5h6v3M4 13h16M10 13v2h4v-2"/></svg>
+        Tools
     </button>
     {% else %}
     <a class="{% if active_tab == 'tools' %}active{% endif %}" href="/?panel=tools#toolsPanel"
         {% if active_tab == 'tools' %}aria-current="page"{% endif %}>
-        <span aria-hidden="true">▤</span>Tools
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4zM9 8V5h6v3M4 13h16M10 13v2h4v-2"/></svg>
+        Tools
     </a>
     {% endif %}
     <button id="helpNavButton" class="{% if active_tab == 'help' %}active{% endif %}" type="button"
         {% if active_tab == 'help' %}aria-current="page"{% endif %}>
-        <span aria-hidden="true">?</span>Help
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.3 2.2c-.8.4-1.1.9-1.1 1.8m0 3.2v.1"/></svg>
+        Help
     </button>
 </nav>

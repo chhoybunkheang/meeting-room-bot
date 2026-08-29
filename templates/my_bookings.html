@@ -16,6 +16,8 @@
 
     <main class="container">
 
+        {% include '_user_header.html' %}
+
         <header class="page-header">
             <div class="page-header-icon" aria-hidden="true">⌁</div>
             <div>
@@ -98,10 +100,6 @@
 
             </form>
 
-                <button type="button" class="booking-back-button">
-                    Back to My Bookings
-                </button>
-
             </div>
 
         </details>
@@ -152,10 +150,6 @@
 
         {% endif %}
 
-
-        <button class="back-button" onclick="window.location.href='/'">
-            Back to Schedule
-        </button>
 
         {% set active_tab = 'my_booking' %}
         {% set tools_local = false %}
@@ -216,13 +210,6 @@
                             if (otherCard !== card) otherCard.open = false;
                         });
                 });
-
-                card
-                    .querySelector(".booking-back-button")
-                    .addEventListener("click", function () {
-                        card.open = false;
-                        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                    });
             });
 
     </script>

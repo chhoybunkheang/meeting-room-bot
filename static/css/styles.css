@@ -929,6 +929,7 @@ input[readonly] {
 .user-home .app-shell { width: min(100%, 900px); padding-bottom: 100px; }
 .user-home .container { padding-bottom: 100px; }
 .user-home .hero-card { min-height: 190px; margin-bottom: 20px; border-radius: 27px; }
+.user-home .container .shared-user-header { margin: -10px -10px 24px; text-align: left; }
 .user-home .eyebrow { display: none; }
 .user-home .schedule-card { padding: clamp(18px, 4vw, 30px); border-radius: 27px; }
 .user-home .section-header { align-items: center; margin-bottom: 20px; }
@@ -957,6 +958,7 @@ input[readonly] {
 .user-home .user-bottom-nav form { margin: 0; }
 .user-home .user-bottom-nav button { width: 100%; cursor: pointer; }
 .user-home .user-bottom-nav span span,.user-home .user-bottom-nav a > span,.user-home .user-bottom-nav button > span,.user-home .user-bottom-nav i { display: grid; height: 27px; place-items: center; color: inherit; font-size: 25px; font-style: normal; line-height: 1; }
+.user-home .user-bottom-nav svg { width: 27px; height: 27px; flex: 0 0 27px; color: inherit; stroke-width: 1.9; }
 .user-home .user-bottom-nav .active { color: var(--blue); }
 .user-home .user-bottom-nav .active::after { position: absolute; right: 15%; bottom: -7px; left: 15%; height: 3px; border-radius: 4px; background: var(--blue); content: ""; }
 .user-home .app-footer { padding-top: 14px; }
