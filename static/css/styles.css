@@ -930,6 +930,11 @@ input[readonly] {
 .user-home .container { padding-bottom: 100px; }
 .user-home .hero-card { min-height: 190px; margin-bottom: 20px; border-radius: 27px; }
 .user-home .container .shared-user-header { margin: -10px -10px 24px; text-align: left; }
+.booking-error-card { display: grid; justify-items: center; margin: 0 auto 20px; padding: clamp(24px,6vw,42px) 20px; border: 1px solid #f0d8da; border-radius: 21px; background: linear-gradient(180deg,#fff,#fff9f9); box-shadow: 0 9px 24px rgba(100,35,43,.07); text-align: center; }
+.booking-error-icon { display: grid; width: 58px; height: 58px; margin-bottom: 16px; place-items: center; border-radius: 50%; background: #fff0f1; color: #d43b49; font-size: 30px; font-weight: 800; }
+.booking-error-card h1 { margin-bottom: 10px; font-size: clamp(25px,6vw,34px); }
+.booking-error-card p { max-width: 420px; margin-bottom: 22px; color: var(--muted); line-height: 1.55; }
+.booking-error-action { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; padding: 12px 22px; border-radius: 13px; background: linear-gradient(120deg,#2362f4,#655cf0); color: #fff; font-weight: 750; text-decoration: none; box-shadow: 0 9px 20px rgba(47,99,245,.2); }
 .user-home .eyebrow { display: none; }
 .user-home .schedule-card { padding: clamp(18px, 4vw, 30px); border-radius: 27px; }
 .user-home .section-header { align-items: center; margin-bottom: 20px; }

@@ -510,32 +510,35 @@ async def create_booking(
         ).time()
 
     except ValueError:
-        return HTMLResponse(
-            """
-            <h2>Invalid booking information</h2>
-            <p>Please check the date and time.</p>
-            <a href="/">Back</a>
-            """,
+        return templates.TemplateResponse(
+            request=request,
+            name="booking_error.html",
+            context={
+                "error_title": "Invalid booking information",
+                "error_message": "Please check the selected date and time.",
+            },
             status_code=400,
         )
 
     if end_time_value <= start_time_value:
-        return HTMLResponse(
-            """
-            <h2>Invalid Time</h2>
-            <p>End time must be later than start time.</p>
-            <a href="/">Back</a>
-            """,
+        return templates.TemplateResponse(
+            request=request,
+            name="booking_error.html",
+            context={
+                "error_title": "Invalid time",
+                "error_message": "End time must be later than start time.",
+            },
             status_code=400,
         )
 
     if booking_date_value < datetime.now().date():
-        return HTMLResponse(
-            """
-            <h2>Invalid Date</h2>
-            <p>You cannot book a past date.</p>
-            <a href="/">Back</a>
-            """,
+        return templates.TemplateResponse(
+            request=request,
+            name="booking_error.html",
+            context={
+                "error_title": "Invalid date",
+                "error_message": "You cannot book a date in the past.",
+            },
             status_code=400,
         )
 
