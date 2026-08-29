@@ -7,13 +7,13 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
-    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-8">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260829-2">
 
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 
 </head>
 
-<body>
+<body class="user-home">
 
     <main class="container status-page">
 
@@ -50,6 +50,16 @@
             Back to Schedule
         </button>
 
+        <nav class="user-bottom-nav" aria-label="Main navigation">
+            <a class="active" href="/" aria-current="page"><span aria-hidden="true">▣</span>Schedules</a>
+            <form method="post" action="/my-bookings">
+                <input id="conflictMyBookingsInitData" name="telegram_init_data" type="hidden">
+                <button type="submit"><span aria-hidden="true">▣</span>My Booking</button>
+            </form>
+            <a href="/?panel=tools#toolsPanel"><span aria-hidden="true">▤</span>Tools</a>
+            <span class="static-nav" aria-disabled="true"><i aria-hidden="true">?</i>Help</span>
+        </nav>
+
         <footer class="app-footer">
             <span class="telegram-mark" aria-hidden="true">➤</span>
             @KHEANG_C_BOT
@@ -62,6 +72,7 @@
         if (tg) {
             tg.ready();
             tg.expand();
+            document.getElementById("conflictMyBookingsInitData").value = tg.initData || "";
         }
     </script>
 

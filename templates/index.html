@@ -278,6 +278,9 @@
         closeBookingButtons.forEach(function (button) { button.addEventListener("click", hideBookingForm); });
         openToolsButton.addEventListener("click", showToolsPanel);
         closeToolsButton.addEventListener("click", hideToolsPanel);
+        if (new URLSearchParams(window.location.search).get("panel") === "tools") {
+            showToolsPanel();
+        }
 
         bookingCreationForm.addEventListener("submit", function () {
             if (bookingSubmitButton.disabled) return;
