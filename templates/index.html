@@ -77,9 +77,9 @@
                         <span>{{ booking.start_time.strftime("%H:%M") }}–{{ booking.end_time.strftime("%H:%M") }}</span>
                     </div>
 
-                    <div class="schedule-person" data-user-name="{{ booking.user_name|e }}">
+                    <div class="schedule-person" data-user-name="{{ first_name(booking.user_name)|e }}">
                         <span class="user-avatar" aria-hidden="true"></span>
-                        <span class="user-display-name">{{ booking.user_name }}</span>
+                        <span class="user-display-name">{{ first_name(booking.user_name) }}</span>
                     </div>
                 </article>
                 {% endfor %}

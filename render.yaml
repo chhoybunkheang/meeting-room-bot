@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: meeting-room-bot
+    name: meeting-room-web
     env: docker
     plan: free
     region: frankfurt
@@ -9,23 +9,36 @@ services:
     autoDeploy: true
     envVars:
       - key: USE_WEBHOOK
-        value: true
-      - key: WEBAPP_HOST
-        value: 0.0.0.0
-      - key: WEBAPP_PORT
-        value: 10000
-      # Set this to your Render service URL after creating the service,
-      # or override in the dashboard.
-      - key: WEBHOOK_URL
-        value: https://<your-render-service>.onrender.com
-      # Secrets: set these in Render dashboard (override values)
+        value: false
       - key: BOT_TOKEN
         sync: false
-      - key: SPREADSHEET_URL
+      - key: DATABASE_URL
         sync: false
       - key: GROUP_CHAT_ID
         sync: false
       - key: ADMIN_ID
         sync: false
-      - key: GOOGLE_CREDENTIALS
+      - key: TELEGRAM_INIT_DATA_MAX_AGE
+        value: 3600
+
+  - type: worker
+    name: meeting-room-bot
+    env: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile.bot
+    dockerContext: .
+    autoDeploy: true
+    envVars:
+      - key: USE_WEBHOOK
+        value: false
+      - key: BOT_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: MINI_APP_URL
+        sync: false
+      - key: GROUP_CHAT_ID
+        sync: false
+      - key: ADMIN_ID
         sync: false

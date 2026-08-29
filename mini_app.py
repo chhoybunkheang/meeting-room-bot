@@ -1,12 +1,9 @@
-import hashlib
-import hmac
-import json
 import logging
 import math
 import os
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from urllib.parse import parse_qsl
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -14,8 +11,11 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
 from telegram import Bot
+from telegram_auth import validate_telegram_init_data as validate_signed_init_data
 
 # =========================================================
 # CONFIG
@@ -27,6 +27,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 GROUP_CHAT_ID = os.getenv("GROUP_CHAT_ID")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+TELEGRAM_INIT_DATA_MAX_AGE = int(os.getenv("TELEGRAM_INIT_DATA_MAX_AGE", "3600"))
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not configured")
@@ -49,6 +50,17 @@ engine = create_engine(
 )
 
 app = FastAPI(title="Meeting Room Mini App")
+
+
+@app.middleware("http")
+async def add_performance_headers(request: Request, call_next):
+    """Expose server processing time for monitoring and load tests."""
+    started = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    response.headers["Server-Timing"] = f"app;dur={elapsed_ms:.2f}"
+    response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.2f}"
+    return response
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -74,6 +86,31 @@ def notification_first_name(user_name: str) -> str:
     if normalized_name.startswith(ROOM_BLOCK_PREFIX):
         return ROOM_BLOCK_PREFIX
     return normalized_name.split(maxsplit=1)[0] if normalized_name else "User"
+
+
+templates.env.globals["first_name"] = notification_first_name
+
+
+@app.get("/health")
+async def health():
+    """Check application and database readiness without blocking the event loop."""
+    started = time.perf_counter()
+
+    def check_database():
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+
+    try:
+        await run_in_threadpool(check_database)
+    except Exception:
+        logger.exception("Database health check failed")
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    return {
+        "status": "ok",
+        "database": "ok",
+        "database_latency_ms": round((time.perf_counter() - started) * 1000, 2),
+    }
 
 
 def authenticate_admin(init_data: str) -> dict:
@@ -166,6 +203,29 @@ def find_overlapping_booking(
         .mappings()
         .first()
     )
+
+
+def insert_booking(conn, values: dict) -> bool:
+    """Insert a booking and report a database-enforced overlap conflict."""
+    try:
+        with conn.begin_nested():
+            conn.execute(
+                text("""
+                    INSERT INTO bookings (
+                        telegram_user_id, user_name, booking_date,
+                        start_time, end_time, status
+                    ) VALUES (
+                        :telegram_user_id, :user_name, :booking_date,
+                        :start_time, :end_time, 'BOOKED'
+                    )
+                """),
+                values,
+            )
+    except IntegrityError as exc:
+        if "bookings_no_active_overlap" in str(exc.orig):
+            return False
+        raise
+    return True
 
 
 def cancel_active_booking(
@@ -291,53 +351,11 @@ def validate_telegram_init_data(init_data: str):
     if the signature is valid.
     """
 
-    if not init_data:
-        raise ValueError("Missing Telegram initData")
-
-    parsed = dict(
-        parse_qsl(
-            init_data,
-            keep_blank_values=True,
-        )
+    return validate_signed_init_data(
+        init_data,
+        BOT_TOKEN,
+        max_age_seconds=TELEGRAM_INIT_DATA_MAX_AGE,
     )
-
-    received_hash = parsed.pop("hash", None)
-
-    if not received_hash:
-        raise ValueError("Missing Telegram hash")
-
-    data_check_string = "\n".join(
-        f"{key}={value}" for key, value in sorted(parsed.items())
-    )
-
-    secret_key = hmac.new(
-        key=b"WebAppData",
-        msg=BOT_TOKEN.encode("utf-8"),
-        digestmod=hashlib.sha256,
-    ).digest()
-
-    calculated_hash = hmac.new(
-        key=secret_key,
-        msg=data_check_string.encode("utf-8"),
-        digestmod=hashlib.sha256,
-    ).hexdigest()
-
-    if not hmac.compare_digest(
-        calculated_hash,
-        received_hash,
-    ):
-        raise ValueError("Invalid Telegram initData")
-
-    user_json = parsed.get("user")
-
-    if not user_json:
-        raise ValueError("Telegram user not found")
-
-    try:
-        return json.loads(user_json)
-
-    except json.JSONDecodeError as exc:
-        raise ValueError("Invalid Telegram user data") from exc
 
 
 # =========================================================
@@ -579,26 +597,8 @@ async def create_booking(
                 status_code=409,
             )
 
-        conn.execute(
-            text("""
-                INSERT INTO bookings (
-                    telegram_user_id,
-                    user_name,
-                    booking_date,
-                    start_time,
-                    end_time,
-                    status
-                )
-
-                VALUES (
-                    :telegram_user_id,
-                    :user_name,
-                    :booking_date,
-                    :start_time,
-                    :end_time,
-                    'BOOKED'
-                )
-            """),
+        inserted = insert_booking(
+            conn,
             {
                 "telegram_user_id": telegram_user_id,
                 "user_name": user_name,
@@ -607,6 +607,12 @@ async def create_booking(
                 "end_time": end_time_value,
             },
         )
+        if not inserted:
+            return HTMLResponse(
+                "<h2>Booking conflict</h2><p>That time was just booked by another user.</p>"
+                "<a href='/'>Back</a>",
+                status_code=409,
+            )
 
     await notify_group(
         "📢 New booking\n\n"
@@ -1125,16 +1131,8 @@ async def admin_add_booking(
                 "That time overlaps with an existing booking or room block.",
                 "error",
             )
-        conn.execute(
-            text("""
-                INSERT INTO bookings (
-                    telegram_user_id, user_name, booking_date,
-                    start_time, end_time, status
-                ) VALUES (
-                    :telegram_user_id, :user_name, :booking_date,
-                    :start_time, :end_time, 'BOOKED'
-                )
-            """),
+        inserted = insert_booking(
+            conn,
             {
                 "telegram_user_id": ADMIN_ID,
                 "user_name": booking_name,
@@ -1143,6 +1141,11 @@ async def admin_add_booking(
                 "end_time": end_value,
             },
         )
+        if not inserted:
+            return render_admin_dashboard(
+                request, admin_user, telegram_init_data,
+                "That time was just booked by another user.", "error"
+            )
 
     record_activity(admin_user, "/admin_add_booking")
     await notify_group(
@@ -1283,16 +1286,8 @@ async def admin_block_room(
                 "The room cannot be blocked because that time is already occupied.",
                 "error",
             )
-        conn.execute(
-            text("""
-                INSERT INTO bookings (
-                    telegram_user_id, user_name, booking_date,
-                    start_time, end_time, status
-                ) VALUES (
-                    :telegram_user_id, :user_name, :booking_date,
-                    :start_time, :end_time, 'BOOKED'
-                )
-            """),
+        inserted = insert_booking(
+            conn,
             {
                 "telegram_user_id": ADMIN_ID,
                 "user_name": block_name,
@@ -1301,6 +1296,11 @@ async def admin_block_room(
                 "end_time": end_value,
             },
         )
+        if not inserted:
+            return render_admin_dashboard(
+                request, admin_user, telegram_init_data,
+                "That time was just occupied by another user.", "error"
+            )
 
     record_activity(admin_user, "/admin_block_room")
     await notify_group(

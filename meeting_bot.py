@@ -14,6 +14,7 @@ from PIL import Image
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
 from telegram import (
     Bot,
     BotCommand,
@@ -163,57 +164,62 @@ async def save_booking(date_str, time_str, name, telegram_id):
         return "invalid"
 
     def save_to_db():
-        with engine.begin() as conn:
-            overlap = conn.execute(
-                text("""
-                    SELECT EXISTS (
-                        SELECT 1
-                        FROM bookings
-                        WHERE booking_date = :booking_date
-                          AND status = 'BOOKED'
-                          AND start_time < :end_time
-                          AND end_time > :start_time
-                    )
-                """),
-                {
-                    "booking_date": booking_date,
-                    "start_time": start_time,
-                    "end_time": end_time,
-                },
-            ).scalar()
+        try:
+            with engine.begin() as conn:
+                overlap = conn.execute(
+                    text("""
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM bookings
+                            WHERE booking_date = :booking_date
+                              AND status = 'BOOKED'
+                              AND start_time < :end_time
+                              AND end_time > :start_time
+                        )
+                    """),
+                    {
+                        "booking_date": booking_date,
+                        "start_time": start_time,
+                        "end_time": end_time,
+                    },
+                ).scalar()
 
-            if overlap:
+                if overlap:
+                    return "overlap"
+
+                conn.execute(
+                    text("""
+                        INSERT INTO bookings (
+                            telegram_user_id,
+                            user_name,
+                            booking_date,
+                            start_time,
+                            end_time,
+                            status
+                        )
+                        VALUES (
+                            :telegram_user_id,
+                            :user_name,
+                            :booking_date,
+                            :start_time,
+                            :end_time,
+                            'BOOKED'
+                        )
+                    """),
+                    {
+                        "telegram_user_id": telegram_id,
+                        "user_name": name,
+                        "booking_date": booking_date,
+                        "start_time": start_time,
+                        "end_time": end_time,
+                    },
+                )
+
+                return "success"
+        except IntegrityError as exc:
+            if "bookings_no_active_overlap" in str(exc.orig):
                 return "overlap"
-
-            conn.execute(
-                text("""
-                    INSERT INTO bookings (
-                        telegram_user_id,
-                        user_name,
-                        booking_date,
-                        start_time,
-                        end_time,
-                        status
-                    )
-                    VALUES (
-                        :telegram_user_id,
-                        :user_name,
-                        :booking_date,
-                        :start_time,
-                        :end_time,
-                        'BOOKED'
-                    )
-                """),
-                {
-                    "telegram_user_id": telegram_id,
-                    "user_name": name,
-                    "booking_date": booking_date,
-                    "start_time": start_time,
-                    "end_time": end_time,
-                },
-            )
-
-            return "success"
+            raise
 
     return await asyncio.to_thread(save_to_db)
 
