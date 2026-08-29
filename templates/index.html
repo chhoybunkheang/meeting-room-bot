@@ -111,15 +111,6 @@
             </nav>
             {% endif %}
 
-            <div class="primary-actions">
-                <form id="adminPanelForm" class="admin-entry" method="post" action="/admin">
-                    <input id="adminInitData" name="telegram_init_data" type="hidden">
-                    <button type="submit" class="admin-panel-button">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5c0 4.6 3.2 8.3 7.5 10 4.3-1.7 7.5-5.4 7.5-10V6L12 3Zm-3 9 2 2 4-4"/></svg>
-                        Admin Panel
-                    </button>
-                </form>
-            </div>
         </section>
 
         <section id="bookingForm" class="form-panel" aria-labelledby="bookingFormTitle">
@@ -155,13 +146,28 @@
             </form>
         </section>
 
+        <section id="toolsPanel" class="form-panel tools-panel" aria-labelledby="toolsPanelTitle">
+            <div class="form-heading">
+                <div><span class="section-kicker">Utilities</span><h2 id="toolsPanelTitle">Tools</h2></div>
+                <button id="closeToolsButton" type="button" class="icon-button" aria-label="Close tools">×</button>
+            </div>
+            <p id="toolsEmptyMessage" class="tools-empty">No tools are available for this account.</p>
+            <form id="adminPanelForm" class="admin-entry" method="post" action="/admin">
+                <input id="adminInitData" name="telegram_init_data" type="hidden">
+                <button type="submit" class="admin-panel-button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5c0 4.6 3.2 8.3 7.5 10 4.3-1.7 7.5-5.4 7.5-10V6L12 3Zm-3 9 2 2 4-4"/></svg>
+                    Admin Panel
+                </button>
+            </form>
+        </section>
+
         <nav class="user-bottom-nav" aria-label="Main navigation">
             <a class="active" href="#scheduleTitle" aria-current="page"><span aria-hidden="true">▣</span>Schedules</a>
             <form method="post" action="/my-bookings">
                 <input id="myBookingsInitData" name="telegram_init_data" type="hidden">
                 <button type="submit"><span aria-hidden="true">▣</span>My Booking</button>
             </form>
-            <span class="static-nav" aria-disabled="true"><i aria-hidden="true">▤</i>Tools</span>
+            <button id="openToolsButton" type="button"><span aria-hidden="true">▤</span>Tools</button>
             <span class="static-nav" aria-disabled="true"><i aria-hidden="true">?</i>Help</span>
         </nav>
 
@@ -173,6 +179,7 @@
 
     <script>
         const bookingForm = document.getElementById("bookingForm");
+        const toolsPanel = document.getElementById("toolsPanel");
         const bookingCreationForm = document.getElementById("bookingCreationForm");
         const bookingSubmitButton = document.getElementById("bookingSubmitButton");
         const openBookingButton = document.getElementById("openBookingButton");
@@ -184,6 +191,9 @@
         const myBookingsInitData = document.getElementById("myBookingsInitData");
         const adminPanelForm = document.getElementById("adminPanelForm");
         const adminInitData = document.getElementById("adminInitData");
+        const toolsEmptyMessage = document.getElementById("toolsEmptyMessage");
+        const openToolsButton = document.getElementById("openToolsButton");
+        const closeToolsButton = document.getElementById("closeToolsButton");
         const configuredAdminId = {{ admin_id }};
 
         const today = new Date();
@@ -225,6 +235,7 @@
                 displayName.value = [user.first_name, user.last_name].filter(Boolean).join(" ");
                 if (Number(user.id) === configuredAdminId) {
                     adminPanelForm.style.display = "block";
+                    toolsEmptyMessage.style.display = "none";
                 }
             } else {
                 browserTestMode();
@@ -252,10 +263,21 @@
             openBookingButton.setAttribute("aria-expanded", "false");
         }
 
+        function showToolsPanel() {
+            toolsPanel.style.display = "block";
+            toolsPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+
+        function hideToolsPanel() {
+            toolsPanel.style.display = "none";
+        }
+
         openBookingButton.setAttribute("aria-controls", "bookingForm");
         openBookingButton.setAttribute("aria-expanded", "false");
         openBookingButton.addEventListener("click", showBookingForm);
         closeBookingButtons.forEach(function (button) { button.addEventListener("click", hideBookingForm); });
+        openToolsButton.addEventListener("click", showToolsPanel);
+        closeToolsButton.addEventListener("click", hideToolsPanel);
 
         bookingCreationForm.addEventListener("submit", function () {
             if (bookingSubmitButton.disabled) return;

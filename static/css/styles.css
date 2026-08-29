@@ -959,6 +959,8 @@ input[readonly] {
 .user-home .user-bottom-nav .active { color: var(--blue); }
 .user-home .user-bottom-nav .active::after { position: absolute; right: 15%; bottom: -7px; left: 15%; height: 3px; border-radius: 4px; background: var(--blue); content: ""; }
 .user-home .app-footer { padding-top: 14px; }
+.user-home .tools-empty { margin: 0; padding: 18px; border-radius: 13px; background: #f6f8fc; color: var(--muted); text-align: center; }
+.user-home .tools-panel .admin-panel-button { min-height: 54px; }
 
 @media (max-width: 620px) {
     .user-home { padding-inline: 9px; }
