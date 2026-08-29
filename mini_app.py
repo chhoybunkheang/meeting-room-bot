@@ -85,6 +85,11 @@ MEETING_TIMEZONE = ZoneInfo(
 ROOM_BLOCK_PREFIX = "🔒 Room Blocked"
 
 
+def current_meeting_datetime() -> datetime:
+    """Return the current time in the configured meeting-room timezone."""
+    return datetime.now(MEETING_TIMEZONE)
+
+
 def notification_first_name(user_name: str) -> str:
     """Return a privacy-friendly name for Telegram group messages."""
     normalized_name = (user_name or "").strip()
@@ -199,7 +204,7 @@ def parse_booking_datetime_values(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid date or time") from exc
 
-    if booking_date_value < datetime.now(MEETING_TIMEZONE).date():
+    if booking_date_value < current_meeting_datetime().date():
         raise HTTPException(status_code=400, detail="Date cannot be in the past")
     if end_time_value <= start_time_value:
         raise HTTPException(status_code=400, detail="End time must be after start time")
@@ -311,14 +316,16 @@ def cancel_active_booking(
 
 def format_current_schedule() -> str:
     """Build a compact upcoming schedule for group notifications."""
+    current_date = current_meeting_datetime().date()
     with engine.connect() as conn:
         total_bookings = conn.execute(
             text("""
                 SELECT COUNT(*)
                 FROM bookings
                 WHERE status = 'BOOKED'
-                  AND booking_date >= CURRENT_DATE
-            """)
+                  AND booking_date >= :current_date
+            """),
+            {"current_date": current_date},
         ).scalar_one()
 
         bookings = (
@@ -331,11 +338,14 @@ def format_current_schedule() -> str:
                         end_time
                     FROM bookings
                     WHERE status = 'BOOKED'
-                      AND booking_date >= CURRENT_DATE
+                      AND booking_date >= :current_date
                     ORDER BY booking_date, start_time
                     LIMIT :limit
                 """),
-                {"limit": SCHEDULE_NOTIFICATION_LIMIT},
+                {
+                    "current_date": current_date,
+                    "limit": SCHEDULE_NOTIFICATION_LIMIT,
+                },
             )
             .mappings()
             .all()
@@ -406,7 +416,7 @@ async def home(
 
     page = max(page, 1)
     schedule_filter = view if view in {"today", "tomorrow", "all"} else "all"
-    today = datetime.now(MEETING_TIMEZONE).date()
+    today = current_meeting_datetime().date()
     filter_date = today + timedelta(days=1) if schedule_filter == "tomorrow" else today
     query_parameters = {
         "today": today,
@@ -570,7 +580,7 @@ async def create_booking(
             status_code=400,
         )
 
-    if booking_date_value < datetime.now().date():
+    if booking_date_value < current_meeting_datetime().date():
         return templates.TemplateResponse(
             request=request,
             name="booking_error.html",
@@ -694,7 +704,7 @@ async def my_bookings(
 
     telegram_user_id = telegram_user["id"]
     page = max(page, 1)
-    meeting_now = datetime.now(MEETING_TIMEZONE)
+    meeting_now = current_meeting_datetime()
 
     with engine.connect() as conn:
         total_bookings = conn.execute(
@@ -703,9 +713,12 @@ async def my_bookings(
                 FROM bookings
                 WHERE telegram_user_id = :telegram_user_id
                   AND status = 'BOOKED'
-                  AND booking_date >= CURRENT_DATE
+                  AND booking_date >= :current_date
             """),
-            {"telegram_user_id": telegram_user_id},
+            {
+                "telegram_user_id": telegram_user_id,
+                "current_date": meeting_now.date(),
+            },
         ).scalar_one()
         total_pages = max(
             1,
@@ -725,12 +738,13 @@ async def my_bookings(
                     FROM bookings
                     WHERE telegram_user_id = :telegram_user_id
                       AND status = 'BOOKED'
-                      AND booking_date >= CURRENT_DATE
+                      AND booking_date >= :current_date
                     ORDER BY booking_date, start_time
                     LIMIT :limit OFFSET :offset
                 """),
                 {
                     "telegram_user_id": telegram_user_id,
+                    "current_date": meeting_now.date(),
                     "limit": BOOKINGS_PER_PAGE,
                     "offset": (page - 1) * BOOKINGS_PER_PAGE,
                 },
@@ -879,7 +893,7 @@ async def end_booking(
         )
 
     telegram_user_id = telegram_user["id"]
-    meeting_now = datetime.now(MEETING_TIMEZONE)
+    meeting_now = current_meeting_datetime()
     current_date = meeting_now.date()
     current_time = meeting_now.time().replace(tzinfo=None)
 
@@ -984,7 +998,7 @@ def render_admin_dashboard(
     feedback: str = "",
     feedback_type: str = "success",
 ):
-    now = datetime.now(MEETING_TIMEZONE)
+    now = current_meeting_datetime()
     today = now.date()
     week_start = today - timedelta(days=today.weekday())
     week_end = week_start + timedelta(days=7)
