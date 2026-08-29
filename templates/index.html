@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f4f7ff">
     <title>B03 Meeting Room</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=20260828-9">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260829-1">
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 </head>
 
-<body>
+<body class="user-home">
     <main class="app-shell">
         <section class="hero-card" aria-labelledby="appTitle">
             <div class="hero-decoration hero-decoration-one"></div>
@@ -38,6 +38,11 @@
                         Current Schedule
                     </h2>
                 </div>
+                <button id="openBookingButton" type="button" class="book-button compact-book-button">
+                    <span aria-hidden="true">+</span> Book
+                </button>
+            </header>
+
                 <nav class="schedule-filter" aria-label="Filter schedule by date">
                     <a class="filter-option{% if schedule_filter == 'today' %} active{% endif %}"
                         href="/?view=today"
@@ -49,13 +54,6 @@
                         href="/?view=all"
                         {% if schedule_filter == 'all' %}aria-current="page"{% endif %}>All</a>
                 </nav>
-            </header>
-
-            <div class="schedule-head" aria-hidden="true">
-                <span>Date</span>
-                <span>Time</span>
-                <span>Booked By</span>
-            </div>
 
             <div class="schedule-list">
                 {% if bookings %}
@@ -81,6 +79,7 @@
                         <span class="user-avatar" aria-hidden="true"></span>
                         <span class="user-display-name">{{ first_name(booking.user_name) }}</span>
                     </div>
+                    <span class="schedule-chevron" aria-hidden="true">›</span>
                 </article>
                 {% endfor %}
                 {% else %}
@@ -113,17 +112,6 @@
             {% endif %}
 
             <div class="primary-actions">
-                <button id="openBookingButton" type="button" class="book-button">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3m10-3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm6 8v6m-3-3h6"/></svg>
-                    Book a Meeting Room
-                </button>
-                <form method="post" action="/my-bookings">
-                    <input id="myBookingsInitData" name="telegram_init_data" type="hidden">
-                    <button type="submit" class="my-bookings-button">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20v-2a7 7 0 0 1 14 0v2M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/></svg>
-                        My Bookings
-                    </button>
-                </form>
                 <form id="adminPanelForm" class="admin-entry" method="post" action="/admin">
                     <input id="adminInitData" name="telegram_init_data" type="hidden">
                     <button type="submit" class="admin-panel-button">
@@ -166,6 +154,16 @@
                 <button type="button" class="cancel-button" data-close-booking>Cancel</button>
             </form>
         </section>
+
+        <nav class="user-bottom-nav" aria-label="Main navigation">
+            <a class="active" href="#scheduleTitle" aria-current="page"><span aria-hidden="true">▣</span>Schedules</a>
+            <form method="post" action="/my-bookings">
+                <input id="myBookingsInitData" name="telegram_init_data" type="hidden">
+                <button type="submit"><span aria-hidden="true">▣</span>My Booking</button>
+            </form>
+            <span class="static-nav" aria-disabled="true"><i aria-hidden="true">▤</i>Tools</span>
+            <span class="static-nav" aria-disabled="true"><i aria-hidden="true">?</i>Help</span>
+        </nav>
 
         <footer class="app-footer">
             <span class="telegram-mark" aria-hidden="true">➤</span>

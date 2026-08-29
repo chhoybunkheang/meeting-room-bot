@@ -924,3 +924,73 @@ input[readonly] {
         scroll-behavior: auto !important;
     }
 }
+
+/* Telegram Mini App schedule dashboard */
+.user-home .app-shell { width: min(100%, 900px); padding-bottom: 4px; }
+.user-home .hero-card { min-height: 190px; margin-bottom: 20px; border-radius: 27px; }
+.user-home .eyebrow { display: none; }
+.user-home .schedule-card { padding: clamp(18px, 4vw, 30px); border-radius: 27px; }
+.user-home .section-header { align-items: center; margin-bottom: 20px; }
+.user-home .section-header > div { min-width: 0; }
+.user-home .section-kicker { margin-bottom: 15px; font-size: 12px; }
+.user-home .compact-book-button { width: auto; min-width: 132px; min-height: 54px; flex: 0 0 auto; gap: 10px; padding: 12px 22px; border-radius: 18px; font-size: 18px; }
+.user-home .compact-book-button > span { font-size: 32px; font-weight: 300; line-height: .7; }
+.user-home .schedule-filter { display: flex; width: 100%; margin-bottom: 24px; padding: 6px; border-radius: 18px; }
+.user-home .filter-option { flex: 1; padding: 12px; border-radius: 13px; font-size: 14px; text-align: center; }
+.user-home .schedule-list { gap: 0; overflow: hidden; border: 1px solid #e2e8f3; border-radius: 19px; }
+.user-home .schedule-row { grid-template-columns: minmax(170px,1.15fr) minmax(140px,.95fr) minmax(120px,.8fr) 18px; gap: 12px; min-height: 88px; padding: 10px 16px; border: 0; border-bottom: 1px solid #e6ebf3; border-radius: 0; box-shadow: none; }
+.user-home .schedule-row:last-child { border-bottom: 0; }
+.user-home .schedule-date { gap: 16px; }
+.user-home .date-badge { width: 62px; height: 66px; flex-basis: 62px; border-radius: 15px; }
+.user-home .date-copy strong { display: none; }
+.user-home .relative-date { font-size: 14px; }
+.user-home .schedule-time { gap: 10px; font-size: 16px; font-weight: 750; }
+.user-home .schedule-person { gap: 10px; }
+.user-home .user-avatar { width: 38px; height: 38px; flex-basis: 38px; }
+.user-home .user-display-name { font-size: 15px; }
+.user-home .schedule-chevron { color: #8b95a9; font-size: 32px; line-height: 1; }
+.user-home .primary-actions:has(.admin-entry[style*="block"]) { margin-top: 14px; }
+.user-home .primary-actions { margin-top: 0; }
+.user-home .user-bottom-nav { position: sticky; z-index: 20; bottom: max(8px,env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); margin-top: 18px; padding: 12px 8px 7px; border: 1px solid #e1e7f1; border-radius: 23px; background: rgba(255,255,255,.97); box-shadow: 0 12px 32px rgba(25,50,100,.15); backdrop-filter: blur(15px); }
+.user-home .user-bottom-nav a,.user-home .user-bottom-nav button,.user-home .user-bottom-nav .static-nav { position: relative; display: flex; min-width: 0; min-height: 55px; align-items: center; justify-content: center; flex-direction: column; gap: 5px; border: 0; background: transparent; color: #80899b; font: inherit; font-size: 12px; font-style: normal; font-weight: 700; text-align: center; text-decoration: none; }
+.user-home .user-bottom-nav form { margin: 0; }
+.user-home .user-bottom-nav button { width: 100%; cursor: pointer; }
+.user-home .user-bottom-nav span span,.user-home .user-bottom-nav a > span,.user-home .user-bottom-nav button > span,.user-home .user-bottom-nav i { display: grid; height: 27px; place-items: center; color: inherit; font-size: 25px; font-style: normal; line-height: 1; }
+.user-home .user-bottom-nav .active { color: var(--blue); }
+.user-home .user-bottom-nav .active::after { position: absolute; right: 15%; bottom: -7px; left: 15%; height: 3px; border-radius: 4px; background: var(--blue); content: ""; }
+.user-home .app-footer { padding-top: 14px; }
+
+@media (max-width: 620px) {
+    .user-home { padding-inline: 9px; }
+    .user-home .hero-card { min-height: 160px; padding: 22px 19px; }
+    .user-home .hero-copy h1 { font-size: clamp(27px,8vw,34px); }
+    .user-home .schedule-card { padding: 17px 12px 12px; }
+    .user-home .section-header { align-items: center; flex-direction: row; gap: 8px; }
+    .user-home .section-kicker { margin-bottom: 9px; font-size: 9px; }
+    .user-home .section-header h2 { font-size: 20px; }
+    .user-home .compact-book-button { min-width: 92px; min-height: 45px; padding: 9px 14px; border-radius: 15px; font-size: 15px; }
+    .user-home .compact-book-button > span { font-size: 25px; }
+    .user-home .schedule-filter { margin-bottom: 16px; padding: 4px; border-radius: 15px; }
+    .user-home .filter-option { padding: 10px 5px; font-size: 12px; }
+    .user-home .schedule-row { grid-template-columns: minmax(105px,1.15fr) minmax(90px,1fr) minmax(67px,.72fr) 12px; grid-template-rows: auto; gap: 6px; min-height: 68px; padding: 8px 9px; }
+    .user-home .schedule-date,.user-home .schedule-time,.user-home .schedule-person { grid-column: auto; grid-row: auto; width: auto; padding-left: 0; }
+    .user-home .schedule-date { gap: 7px; }
+    .user-home .date-badge { width: 45px; height: 49px; flex-basis: 45px; border-radius: 11px; }
+    .user-home .date-badge span { font-size: 8px; }
+    .user-home .date-badge strong { font-size: 20px; }
+    .user-home .relative-date { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .user-home .schedule-time { gap: 4px; font-size: 11px; }
+    .user-home .schedule-time svg { width: 16px; }
+    .user-home .schedule-person { gap: 5px; }
+    .user-home .user-avatar { width: 27px; height: 27px; flex-basis: 27px; font-size: 9px; }
+    .user-home .user-display-name { font-size: 11px; }
+    .user-home .schedule-chevron { font-size: 25px; }
+    .user-home .user-bottom-nav { margin-right: -2px; margin-left: -2px; padding-right: 2px; padding-left: 2px; }
+    .user-home .user-bottom-nav a,.user-home .user-bottom-nav button,.user-home .user-bottom-nav .static-nav { font-size: 10px; }
+}
+
+@media (max-width: 370px) {
+    .user-home .schedule-row { grid-template-columns: minmax(96px,1.1fr) minmax(82px,1fr) minmax(59px,.65fr) 10px; padding-inline: 6px; }
+    .user-home .date-badge { width: 41px; flex-basis: 41px; }
+    .user-home .user-display-name { max-width: 36px; }
+}
