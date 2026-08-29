@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f9fd">
     <title>Admin Panel · B03 Meeting Room</title>
     <link rel="stylesheet" href="/static/css/styles.css?v=20260829-1">
-    <link rel="stylesheet" href="/static/css/admin.css?v=20260829-3">
+    <link rel="stylesheet" href="/static/css/admin.css?v=20260829-4">
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 </head>
 <body class="admin-body">
@@ -20,6 +20,18 @@
     </header>
 
     {% if feedback %}<div class="admin-feedback {{ feedback_type }}" role="status">{{ feedback }}</div>{% endif %}
+
+    <section class="admin-hero shared-admin-head" aria-labelledby="welcomeTitle">
+        <div class="hero-pattern" aria-hidden="true"></div>
+        <div class="admin-hero-copy">
+            <span class="admin-calendar" aria-hidden="true">▣</span>
+            <div><h2 id="welcomeTitle">Welcome, {{ admin_name|upper }}</h2><p>Manage meeting room bookings and settings.</p></div>
+        </div>
+        <div id="roomStatus" class="room-status {{ room_status_type }}">
+            <div><span>Room Status</span><strong><i></i>{{ room_status }}</strong><small>{{ room_status_detail }}</small></div>
+            <a href="#todaysBookings" class="schedule-button"><span aria-hidden="true">▣</span> View Schedule</a>
+        </div>
+    </section>
 
     {% set report_ns = namespace(booking_actions=0, cancellation_actions=0) %}
     {% for activity in recent_activity %}
@@ -70,18 +82,6 @@
             </section>
         </div>
         <p class="report-source-note"><span aria-hidden="true">i</span> Statistics use the existing recent <code>user_activity</code> feed and current booking data. Times are shown in Asia/Phnom_Penh.</p>
-    </section>
-
-    <section class="admin-hero" aria-labelledby="welcomeTitle">
-        <div class="hero-pattern" aria-hidden="true"></div>
-        <div class="admin-hero-copy">
-            <span class="admin-calendar" aria-hidden="true">▣</span>
-            <div><h2 id="welcomeTitle">Welcome, {{ admin_name|upper }}</h2><p>Manage meeting room<br>bookings and settings.</p></div>
-        </div>
-        <div id="roomStatus" class="room-status {{ room_status_type }}">
-            <div><span>Room Status</span><strong><i></i>{{ room_status }}</strong><small>{{ room_status_detail }}</small></div>
-            <a href="#todaysBookings" class="schedule-button"><span aria-hidden="true">▣</span> View Schedule</a>
-        </div>
     </section>
 
     <section class="admin-stats" aria-label="Booking statistics">
