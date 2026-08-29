@@ -926,7 +926,8 @@ input[readonly] {
 }
 
 /* Telegram Mini App schedule dashboard */
-.user-home .app-shell { width: min(100%, 900px); padding-bottom: 4px; }
+.user-home .app-shell { width: min(100%, 900px); padding-bottom: 100px; }
+.user-home .container { padding-bottom: 100px; }
 .user-home .hero-card { min-height: 190px; margin-bottom: 20px; border-radius: 27px; }
 .user-home .eyebrow { display: none; }
 .user-home .schedule-card { padding: clamp(18px, 4vw, 30px); border-radius: 27px; }
@@ -951,7 +952,7 @@ input[readonly] {
 .user-home .schedule-chevron { color: #8b95a9; font-size: 32px; line-height: 1; }
 .user-home .primary-actions:has(.admin-entry[style*="block"]) { margin-top: 14px; }
 .user-home .primary-actions { margin-top: 0; }
-.user-home .user-bottom-nav { position: sticky; z-index: 20; bottom: max(8px,env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); margin-top: 18px; padding: 12px 8px 7px; border: 1px solid #e1e7f1; border-radius: 23px; background: rgba(255,255,255,.97); box-shadow: 0 12px 32px rgba(25,50,100,.15); backdrop-filter: blur(15px); }
+.user-home .user-bottom-nav { position: fixed; z-index: 20; right: auto; bottom: max(8px,env(safe-area-inset-bottom)); left: 50%; display: grid; width: min(calc(100% - 18px),900px); grid-template-columns: repeat(4,minmax(0,1fr)); margin: 0; padding: 12px 8px 7px; border: 1px solid #e1e7f1; border-radius: 23px; background: rgba(255,255,255,.97); box-shadow: 0 12px 32px rgba(25,50,100,.15); transform: translateX(-50%); backdrop-filter: blur(15px); }
 .user-home .user-bottom-nav a,.user-home .user-bottom-nav button,.user-home .user-bottom-nav .static-nav { position: relative; display: flex; min-width: 0; min-height: 55px; align-items: center; justify-content: center; flex-direction: column; gap: 5px; border: 0; background: transparent; color: #80899b; font: inherit; font-size: 12px; font-style: normal; font-weight: 700; text-align: center; text-decoration: none; }
 .user-home .user-bottom-nav form { margin: 0; }
 .user-home .user-bottom-nav button { width: 100%; cursor: pointer; }
@@ -991,7 +992,7 @@ input[readonly] {
     .user-home .user-avatar { width: 27px; height: 27px; flex-basis: 27px; font-size: 9px; }
     .user-home .user-display-name { max-width: none; font-size: 11px; }
     .user-home .schedule-chevron { font-size: 25px; }
-    .user-home .user-bottom-nav { margin-right: -2px; margin-left: -2px; padding-right: 2px; padding-left: 2px; }
+    .user-home .user-bottom-nav { width: calc(100% - 12px); padding-right: 2px; padding-left: 2px; }
     .user-home .user-bottom-nav a,.user-home .user-bottom-nav button,.user-home .user-bottom-nav .static-nav { font-size: 10px; }
 }
 

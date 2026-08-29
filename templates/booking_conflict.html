@@ -50,15 +50,11 @@
             Back to Schedule
         </button>
 
-        <nav class="user-bottom-nav" aria-label="Main navigation">
-            <a class="active" href="/" aria-current="page"><span aria-hidden="true">▣</span>Schedules</a>
-            <form method="post" action="/my-bookings">
-                <input id="conflictMyBookingsInitData" name="telegram_init_data" type="hidden">
-                <button type="submit"><span aria-hidden="true">▣</span>My Booking</button>
-            </form>
-            <a href="/?panel=tools#toolsPanel"><span aria-hidden="true">▤</span>Tools</a>
-            <span class="static-nav" aria-disabled="true"><i aria-hidden="true">?</i>Help</span>
-        </nav>
+        {% set active_tab = 'schedules' %}
+        {% set tools_local = false %}
+        {% set my_booking_input_id = 'conflictMyBookingsInitData' %}
+        {% set my_booking_input_class = '' %}
+        {% include '_user_bottom_nav.html' %}
 
         <footer class="app-footer">
             <span class="telegram-mark" aria-hidden="true">➤</span>
@@ -74,6 +70,14 @@
             tg.expand();
             document.getElementById("conflictMyBookingsInitData").value = tg.initData || "";
         }
+        document.getElementById("helpNavButton").addEventListener("click", function () {
+            document.querySelectorAll(".user-bottom-nav .active").forEach(function (item) {
+                item.classList.remove("active");
+                item.removeAttribute("aria-current");
+            });
+            this.classList.add("active");
+            this.setAttribute("aria-current", "page");
+        });
     </script>
 
 </body>

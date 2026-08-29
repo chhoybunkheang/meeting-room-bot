@@ -1,0 +1,30 @@
+<nav class="user-bottom-nav" aria-label="Main navigation">
+    <a class="{% if active_tab == 'schedules' %}active{% endif %}" href="/"
+        {% if active_tab == 'schedules' %}aria-current="page"{% endif %}>
+        <span aria-hidden="true">▣</span>Schedules
+    </a>
+    <form method="post" action="/my-bookings">
+        <input{% if my_booking_input_id %} id="{{ my_booking_input_id }}"{% endif %}
+            {% if my_booking_input_class %}class="{{ my_booking_input_class }}"{% endif %}
+            name="telegram_init_data" type="hidden">
+        <button class="{% if active_tab == 'my_booking' %}active{% endif %}" type="submit"
+            {% if active_tab == 'my_booking' %}aria-current="page"{% endif %}>
+            <span aria-hidden="true">▣</span>My Booking
+        </button>
+    </form>
+    {% if tools_local %}
+    <button id="openToolsButton" class="{% if active_tab == 'tools' %}active{% endif %}" type="button"
+        {% if active_tab == 'tools' %}aria-current="page"{% endif %}>
+        <span aria-hidden="true">▤</span>Tools
+    </button>
+    {% else %}
+    <a class="{% if active_tab == 'tools' %}active{% endif %}" href="/?panel=tools#toolsPanel"
+        {% if active_tab == 'tools' %}aria-current="page"{% endif %}>
+        <span aria-hidden="true">▤</span>Tools
+    </a>
+    {% endif %}
+    <button id="helpNavButton" class="{% if active_tab == 'help' %}active{% endif %}" type="button"
+        {% if active_tab == 'help' %}aria-current="page"{% endif %}>
+        <span aria-hidden="true">?</span>Help
+    </button>
+</nav>

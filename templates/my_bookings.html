@@ -157,15 +157,11 @@
             Back to Schedule
         </button>
 
-        <nav class="user-bottom-nav" aria-label="Main navigation">
-            <a href="/"><span aria-hidden="true">▣</span>Schedules</a>
-            <form method="post" action="/my-bookings">
-                <input class="booking-init-data" name="telegram_init_data" type="hidden">
-                <button class="active" type="submit" aria-current="page"><span aria-hidden="true">▣</span>My Booking</button>
-            </form>
-            <a href="/?panel=tools#toolsPanel"><span aria-hidden="true">▤</span>Tools</a>
-            <span class="static-nav" aria-disabled="true"><i aria-hidden="true">?</i>Help</span>
-        </nav>
+        {% set active_tab = 'my_booking' %}
+        {% set tools_local = false %}
+        {% set my_booking_input_id = '' %}
+        {% set my_booking_input_class = 'booking-init-data' %}
+        {% include '_user_bottom_nav.html' %}
 
         <footer class="app-footer">
             <span class="telegram-mark" aria-hidden="true">➤</span>
@@ -198,6 +194,15 @@
                     }
                 );
         }
+
+        document.getElementById("helpNavButton").addEventListener("click", function () {
+            document.querySelectorAll(".user-bottom-nav .active").forEach(function (item) {
+                item.classList.remove("active");
+                item.removeAttribute("aria-current");
+            });
+            this.classList.add("active");
+            this.setAttribute("aria-current", "page");
+        });
 
         document
             .querySelectorAll(".booking-card")
