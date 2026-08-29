@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f9fd">
     <title>Admin Panel · B03 Meeting Room</title>
     <link rel="stylesheet" href="/static/css/styles.css?v=20260829-1">
-    <link rel="stylesheet" href="/static/css/admin.css?v=20260829-2">
+    <link rel="stylesheet" href="/static/css/admin.css?v=20260829-3">
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 </head>
 <body class="admin-body">
@@ -20,6 +20,57 @@
     </header>
 
     {% if feedback %}<div class="admin-feedback {{ feedback_type }}" role="status">{{ feedback }}</div>{% endif %}
+
+    {% set report_ns = namespace(booking_actions=0, cancellation_actions=0) %}
+    {% for activity in recent_activity %}
+        {% set report_command = activity.command|lower %}
+        {% if 'book' in report_command %}{% set report_ns.booking_actions = report_ns.booking_actions + 1 %}{% endif %}
+        {% if 'cancel' in report_command %}{% set report_ns.cancellation_actions = report_ns.cancellation_actions + 1 %}{% endif %}
+    {% endfor %}
+    {% set report_users = recent_activity|groupby('user_name')|list %}
+    {% set report_commands = recent_activity|groupby('command')|list %}
+    <section id="reportsView" class="admin-reports" aria-labelledby="reportsTitle">
+        <div class="reports-heading">
+            <div><span>B03 Meeting Room</span><h2 id="reportsTitle">Reports</h2><p>Insights from current bookings and recent user activity.</p></div>
+            <button class="report-date-filter" type="button" aria-label="Current report period; visual filter only"><span aria-hidden="true">▣</span><strong>Latest activity</strong><i aria-hidden="true">⌄</i></button>
+        </div>
+        <div class="report-switcher" aria-label="Report categories">
+            <a href="#bookingReportKpis"><span class="report-switch-icon blue">▥</span><span><strong>Booking Reports</strong><small>View booking analytics</small></span><b aria-hidden="true">›</b></a>
+            <a class="selected" href="#userStatisticsOverview"><span class="report-switch-icon purple">♙</span><span><strong>User Statistics</strong><small>View user activity</small></span><b aria-hidden="true">›</b></a>
+        </div>
+        <section id="userStatisticsOverview" class="report-panel" aria-labelledby="userStatsTitle">
+            <h3 id="userStatsTitle">User Statistics Overview</h3>
+            <div id="bookingReportKpis" class="report-kpis">
+                <article><span class="kpi-icon blue">♙</span><strong>{{ report_users|length }}</strong><b>Recent Users</b><small>in latest activity</small></article>
+                <article><span class="kpi-icon green">▥</span><strong>{{ recent_activity|length }}</strong><b>Recent Actions</b><small>latest recorded</small></article>
+                <article><span class="kpi-icon orange">▣</span><strong>{{ report_ns.booking_actions }}</strong><b>Booking Actions</b><small>in latest activity</small></article>
+                <article><span class="kpi-icon red">⊘</span><strong>{{ report_ns.cancellation_actions }}</strong><b>Cancel Actions</b><small>in latest activity</small></article>
+                <article><span class="kpi-icon purple">◷</span><strong>{{ upcoming_bookings|length }}</strong><b>Upcoming</b><small>current bookings</small></article>
+            </div>
+        </section>
+        <div class="report-visual-grid">
+            <section class="report-panel report-chart" aria-labelledby="activityOverviewTitle">
+                <div class="report-panel-heading"><h3 id="activityOverviewTitle">Activity Overview</h3><span>Recent snapshot</span></div>
+                <div class="chart-placeholder" role="img" aria-label="Visual placeholder for activity trends; historical time-series data is not available"><div class="chart-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+                <p class="report-static-note">Historical trend is a visual preview until time-series data is available.</p>
+            </section>
+            <section class="report-panel command-report" aria-labelledby="commandTitle">
+                <div class="report-panel-heading"><h3 id="commandTitle">Actions by Command</h3><span>{{ recent_activity|length }} total</span></div>
+                {% if report_commands %}<div class="command-list">{% for command, entries in report_commands %}<div><span><i style="--command-color: {{ ['#6552ed','#3598ef','#3dc27b','#ffb545','#fa5e86'][loop.index0 % 5] }}"></i>{{ command }}</span><strong>{{ entries|length }}</strong><em style="--command-size: {{ entries|length * 10 }}%"></em></div>{% endfor %}</div>{% else %}<p class="admin-empty">No command activity yet.</p>{% endif %}
+            </section>
+        </div>
+        <div class="report-table-grid">
+            <section class="report-panel" aria-labelledby="activeUsersTitle">
+                <div class="report-panel-heading"><h3 id="activeUsersTitle">Most Active Users</h3><span>Latest records</span></div>
+                {% if report_users %}<div class="report-user-list">{% for user_name, entries in report_users %}<article><span class="report-avatar">{{ user_name[:1]|upper }}</span><div><strong>{{ user_name }}</strong><small>Recent activity</small></div><b>{{ entries|length }} action{{ '' if entries|length == 1 else 's' }}</b></article>{% endfor %}</div>{% else %}<p class="admin-empty">No user activity yet.</p>{% endif %}
+            </section>
+            <section id="reportsRecentActivity" class="report-panel" aria-labelledby="recentActivityTitle">
+                <div class="report-panel-heading"><h3 id="recentActivityTitle">Recent Activity</h3><span>{{ recent_activity|length }} recent</span></div>
+                {% if recent_activity %}<div class="report-activity-list">{% for activity in recent_activity %}<article><span class="activity-icon">✓</span><div><strong>{{ activity.user_name }}</strong><small>{{ activity.command.replace('_', ' ').replace('/', '').title() }}</small></div><time>{{ activity.created_at.strftime('%d/%m/%Y') }}<br>{{ activity.created_at.strftime('%H:%M') }}</time></article>{% endfor %}</div>{% else %}<p class="admin-empty">No activity has been recorded yet.</p>{% endif %}
+            </section>
+        </div>
+        <p class="report-source-note"><span aria-hidden="true">i</span> Statistics use the existing recent <code>user_activity</code> feed and current booking data. Times are shown in Asia/Phnom_Penh.</p>
+    </section>
 
     <section class="admin-hero" aria-labelledby="welcomeTitle">
         <div class="hero-pattern" aria-hidden="true"></div>
@@ -65,7 +116,7 @@
             <button type="button" class="quick-action blue" data-open-panel="addBookingPanel"><span>+</span><strong>New Booking</strong><small>Create a new booking</small></button>
             <a class="quick-action green" href="#upcomingBookings"><span>▣</span><strong>Manage Bookings</strong><small>View and manage all bookings</small></a>
             <button type="button" class="quick-action orange" data-open-panel="noticePanel"><span>⌁</span><strong>Announcement</strong><small>Send announcement to group</small></button>
-            <a class="quick-action purple static-action" href="#recentActivity"><span>▥</span><strong>Reports</strong><small>View reports and analytics</small></a>
+            <a class="quick-action purple static-action" href="#reportsView"><span>▥</span><strong>Reports</strong><small>View reports and analytics</small></a>
         </div>
     </section>
 
@@ -103,10 +154,8 @@
     <section id="blockRoomPanel" class="admin-card admin-panel" hidden><div class="admin-section-heading"><h2>Block Room</h2><button type="button" data-close-panel>×</button></div><form method="post" action="/admin/blocks/add" class="admin-form"><input class="admin-init-data" type="hidden" name="telegram_init_data" value="{{ telegram_init_data }}"><div class="admin-form-grid three"><div><label>Date</label><input name="booking_date" type="date" min="{{ today.isoformat() }}" required></div><div><label>Start</label><input name="start_time" type="time" required></div><div><label>End</label><input name="end_time" type="time" required></div></div><label>Reason <span class="optional">Optional</span></label><input name="reason" type="text" maxlength="80" placeholder="Maintenance, private event…"><div class="admin-form-actions"><button class="admin-danger" type="submit">Block Room</button><button type="button" class="admin-secondary" data-close-panel>Cancel</button></div></form></section>
     <section id="unblockRoomPanel" class="admin-card admin-panel" hidden><div class="admin-section-heading"><h2>Active Room Blocks</h2><button type="button" data-close-panel>×</button></div>{% if room_blocks %}<div class="block-list">{% for block in room_blocks %}<form method="post" action="/admin/blocks/remove" onsubmit="return confirm('Remove this room block?');"><input class="admin-init-data" type="hidden" name="telegram_init_data" value="{{ telegram_init_data }}"><input type="hidden" name="booking_id" value="{{ block.id }}"><div><strong>{{ block.booking_date.strftime('%d/%m/%Y') }}</strong><span>{{ block.start_time.strftime('%H:%M') }}–{{ block.end_time.strftime('%H:%M') }}</span><small>{{ block.user_name }}</small></div><button type="submit" class="admin-warning">Unblock</button></form>{% endfor %}</div>{% else %}<p class="admin-empty">There are no active room blocks.</p>{% endif %}</section>
 
-    <section id="recentActivity" class="admin-card activity-card" aria-labelledby="activityTitle"><div class="admin-section-heading"><h2 id="activityTitle">Recent Activity</h2><span>{{ recent_activity|length }} recent</span></div>{% if recent_activity %}<div class="activity-list">{% for activity in recent_activity %}<article><span class="activity-icon">✓</span><div><strong>{{ activity.command.replace('_', ' ').replace('/', '').title() }} by {{ activity.user_name }}</strong><small>{{ activity.created_at.strftime('%d/%m/%Y · %H:%M') }}</small></div></article>{% endfor %}</div>{% else %}<p class="admin-empty">No activity has been recorded yet.</p>{% endif %}</section>
-
     <nav class="admin-bottom-nav" aria-label="Admin navigation">
-        <a class="active" href="#welcomeTitle"><span>◆</span>Dashboard</a><a href="#upcomingBookings"><span>▣</span>Bookings</a><a href="#roomTools"><span>▥</span>Rooms</a><a href="#recentActivity"><span>▥</span>Reports</a><a href="#roomTools"><span>⚙</span>Settings</a>
+        <a href="#welcomeTitle"><span>◇</span>Dashboard</a><a href="#upcomingBookings"><span>▣</span>Bookings</a><a href="#roomTools"><span>▥</span>Rooms</a><a class="active" href="#reportsView" aria-current="page"><span>▥</span>Reports</a><a href="#roomTools"><span>⚙</span>Settings</a>
     </nav>
     <footer class="admin-footer">@{{ bot_username }}</footer>
 </main>
