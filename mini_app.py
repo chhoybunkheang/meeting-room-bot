@@ -44,6 +44,11 @@ if not ADMIN_ID:
 
 logger = logging.getLogger(__name__)
 
+BOT_USERNAME_CACHE = os.getenv("BOT_USERNAME", "").strip().lstrip("@")
+BOT_USERNAME_CACHE_EXPIRES_AT = 0.0
+BOT_USERNAME_CACHE_SECONDS = 3600
+BOT_USERNAME_LOCK = None
+
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
@@ -89,6 +94,35 @@ def notification_first_name(user_name: str) -> str:
 
 
 templates.env.globals["first_name"] = notification_first_name
+
+
+async def get_bot_username() -> str:
+    """Return the current Telegram bot username with a short-lived cache."""
+    global BOT_USERNAME_CACHE, BOT_USERNAME_CACHE_EXPIRES_AT, BOT_USERNAME_LOCK
+
+    now = time.monotonic()
+    if BOT_USERNAME_CACHE and now < BOT_USERNAME_CACHE_EXPIRES_AT:
+        return BOT_USERNAME_CACHE
+
+    if BOT_USERNAME_LOCK is None:
+        import asyncio
+        BOT_USERNAME_LOCK = asyncio.Lock()
+
+    async with BOT_USERNAME_LOCK:
+        now = time.monotonic()
+        if BOT_USERNAME_CACHE and now < BOT_USERNAME_CACHE_EXPIRES_AT:
+            return BOT_USERNAME_CACHE
+        try:
+            async with Bot(token=BOT_TOKEN) as bot:
+                bot_user = await bot.get_me()
+            if bot_user.username:
+                BOT_USERNAME_CACHE = bot_user.username
+                BOT_USERNAME_CACHE_EXPIRES_AT = now + BOT_USERNAME_CACHE_SECONDS
+        except Exception:
+            logger.exception("Could not refresh Telegram bot username")
+            BOT_USERNAME_CACHE_EXPIRES_AT = now + 300
+
+    return BOT_USERNAME_CACHE or "TelegramBot"
 
 
 @app.get("/health")
@@ -439,6 +473,7 @@ async def home(
             "total_pages": total_pages,
             "schedule_filter": schedule_filter,
             "admin_id": ADMIN_ID,
+            "bot_username": await get_bot_username(),
         },
     )
 
@@ -489,6 +524,8 @@ async def create_booking(
             "Telegram User",
         )
 
+    bot_username = await get_bot_username()
+
     # -----------------------------------------------------
     # Validate booking date/time
     # -----------------------------------------------------
@@ -516,6 +553,7 @@ async def create_booking(
             context={
                 "error_title": "Invalid booking information",
                 "error_message": "Please check the selected date and time.",
+                "bot_username": bot_username,
             },
             status_code=400,
         )
@@ -527,6 +565,7 @@ async def create_booking(
             context={
                 "error_title": "Invalid time",
                 "error_message": "End time must be later than start time.",
+                "bot_username": bot_username,
             },
             status_code=400,
         )
@@ -538,6 +577,7 @@ async def create_booking(
             context={
                 "error_title": "Invalid date",
                 "error_message": "You cannot book a date in the past.",
+                "bot_username": bot_username,
             },
             status_code=400,
         )
@@ -596,6 +636,7 @@ async def create_booking(
                     "conflicting_user_name": overlap_booking["user_name"],
                     "conflicting_start_time": overlap_booking["start_time"],
                     "conflicting_end_time": overlap_booking["end_time"],
+                    "bot_username": bot_username,
                 },
                 status_code=409,
             )
@@ -707,6 +748,7 @@ async def my_bookings(
             "total_pages": total_pages,
             "current_date": meeting_now.date(),
             "current_time": meeting_now.time().replace(tzinfo=None),
+            "bot_username": await get_bot_username(),
         },
     )
 
@@ -1097,6 +1139,7 @@ def render_admin_dashboard(
             "today": today,
             "feedback": feedback,
             "feedback_type": feedback_type,
+            "bot_username": BOT_USERNAME_CACHE or "TelegramBot",
         },
     )
 
