@@ -17,6 +17,10 @@ env/
 .env
 .env.local
 .env.*.local
+.env.prod
+.env.sheetprod
+google_credentials.json
+meeting_room_bot.backup
 
 # Logs
 *.log
@@ -24,4 +28,4 @@ env/
 # OS
 .DS_Store
 Thumbs.db
-meeting_room_bot.backup
+
