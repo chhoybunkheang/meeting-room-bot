@@ -8,4 +8,9 @@
         <h1 id="sharedAppTitle">B03 Meeting Room</h1>
         <p>Book the room and see when it is available.</p>
     </div>
+    {% set user_room = get_user_room_status() %}
+    <div class="user-room-status {{ user_room.type }}" role="status" aria-label="Room status: {{ user_room.label }}">
+        <span class="user-room-status-dot" aria-hidden="true"></span>
+        <div><small>Room Status</small><strong>{{ user_room.label }}</strong><span>{{ user_room.detail }}</span></div>
+    </div>
 </section>

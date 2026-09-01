@@ -155,6 +155,66 @@ h2 {
     line-height: 1.5;
 }
 
+.shared-user-header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+}
+
+.user-room-status {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    grid-column: 2;
+    align-items: center;
+    gap: 12px;
+    width: min(100%, 390px);
+    padding: 12px 15px;
+    border: 1px solid rgba(47, 99, 245, 0.14);
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 8px 22px rgba(31, 62, 125, 0.09);
+}
+
+.user-room-status-dot {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 12px;
+    border-radius: 50%;
+    background: #12b76a;
+    box-shadow: 0 0 0 4px #e9f9f1;
+}
+
+.user-room-status > div {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+}
+
+.user-room-status small,
+.user-room-status > div > span {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.user-room-status strong {
+    font-size: 16px;
+}
+
+.user-room-status.booked .user-room-status-dot {
+    background: #f79009;
+    box-shadow: 0 0 0 4px #fff4e5;
+}
+
+.user-room-status.blocked .user-room-status-dot {
+    background: #e5484d;
+    box-shadow: 0 0 0 4px #ffebec;
+}
+
+.user-room-status.unknown .user-room-status-dot {
+    background: #8893a8;
+    box-shadow: 0 0 0 4px #edf0f5;
+}
+
 .eyebrow,
 .section-kicker {
     display: block;
@@ -877,6 +937,15 @@ input[readonly] {
     .hero-copy h1 {
         margin-top: 3px;
         font-size: 29px;
+    }
+
+    .shared-user-header {
+        grid-template-columns: 58px minmax(0, 1fr);
+    }
+
+    .user-room-status {
+        grid-column: 1 / -1;
+        width: 100%;
     }
 
     .hero-copy p {
