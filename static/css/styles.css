@@ -164,10 +164,10 @@ h2 {
     position: relative;
     z-index: 1;
     display: flex;
-    grid-column: 2;
     align-items: center;
     gap: 12px;
     width: min(100%, 390px);
+    margin-top: 12px;
     padding: 12px 15px;
     border: 1px solid rgba(47, 99, 245, 0.14);
     border-radius: 15px;
@@ -943,11 +943,6 @@ input[readonly] {
         grid-template-columns: 58px minmax(0, 1fr);
     }
 
-    .user-room-status {
-        grid-column: 1 / -1;
-        width: 100%;
-    }
-
     .hero-copy p {
         font-size: 14px;
         line-height: 1.4;
@@ -998,6 +993,7 @@ input[readonly] {
 .user-home .app-shell { width: min(100%, 900px); padding-bottom: 100px; }
 .user-home .container { padding-bottom: 100px; }
 .user-home .hero-card { min-height: 190px; margin-bottom: 20px; border-radius: 27px; }
+.user-home .shared-user-header { min-height: 205px; padding: 18px 20px; }
 .user-home .container .shared-user-header { margin: -10px -10px 24px; text-align: left; }
 .booking-error-card { display: grid; justify-items: center; margin: 0 auto 20px; padding: clamp(24px,6vw,42px) 20px; border: 1px solid #f0d8da; border-radius: 21px; background: linear-gradient(180deg,#fff,#fff9f9); box-shadow: 0 9px 24px rgba(100,35,43,.07); text-align: center; }
 .booking-error-icon { display: grid; width: 58px; height: 58px; margin-bottom: 16px; place-items: center; border-radius: 50%; background: #fff0f1; color: #d43b49; font-size: 30px; font-weight: 800; }
@@ -1042,6 +1038,7 @@ input[readonly] {
 @media (max-width: 620px) {
     .user-home { padding-inline: 9px; }
     .user-home .hero-card { min-height: 160px; padding: 22px 19px; }
+    .user-home .shared-user-header { min-height: 195px; padding: 14px; }
     .user-home .hero-copy h1 { font-size: clamp(27px,8vw,34px); }
     .user-home .schedule-card { padding: 17px 12px 12px; }
     .user-home .section-header { align-items: center; flex-direction: row; gap: 8px; }
@@ -1070,6 +1067,10 @@ input[readonly] {
     .user-home .schedule-chevron { font-size: 25px; }
     .user-home .user-bottom-nav { width: calc(100% - 12px); padding-right: 2px; padding-left: 2px; }
     .user-home .user-bottom-nav a,.user-home .user-bottom-nav button,.user-home .user-bottom-nav .static-nav { font-size: 10px; }
+}
+
+@media (max-width: 390px) {
+    .user-home .shared-user-header { min-height: 205px; }
 }
 
 @media (max-width: 370px) {
