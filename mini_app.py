@@ -346,11 +346,11 @@ def format_current_schedule() -> str:
 
     schedule_lines = ["📋 Current Schedule"]
     schedule_lines.extend(
-        f"{position}. {booking['booking_date'].strftime('%d/%m/%Y')} | "
+        f"{booking['booking_date'].strftime('%d/%m/%Y')} | "
         f"{booking['start_time'].strftime('%H:%M')}–"
         f"{booking['end_time'].strftime('%H:%M')} | "
         f"{notification_first_name(booking['user_name'])}"
-        for position, booking in enumerate(bookings, start=1)
+        for booking in bookings
     )
 
     remaining = total_bookings - len(bookings)
