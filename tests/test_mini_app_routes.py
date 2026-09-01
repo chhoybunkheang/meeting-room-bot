@@ -250,3 +250,6 @@ def test_admin_template_has_five_true_tab_panels_with_dashboard_default(
     for tab in ("bookings", "rooms", "reports", "settings"):
         assert f'data-admin-panel="{tab}"' in html
     assert html.count('data-admin-tab="dashboard" aria-current="page"') == 1
+    assert html.index('id="roomTitle">B03 Meeting Room') < html.index(
+        'id="roomStatus"'
+    )
