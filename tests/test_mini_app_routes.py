@@ -255,6 +255,65 @@ def test_admin_template_has_five_true_tab_panels_with_dashboard_default(
     )
 
 
+def test_admin_user_statistics_is_read_only_and_renders_existing_data(
+    mini_app_module, monkeypatch
+):
+    now = datetime(2026, 9, 1, 9, 30)
+    rows = [
+        [{"user_name": "Dara", "total_actions": 5,
+          "first_activity": now - timedelta(days=3), "last_activity": now}],
+        [{"command": "/book", "action_count": 3},
+         {"command": "/start", "action_count": 2}],
+        [{"command": "/book", "created_at": now}],
+        [{"total_bookings": 3, "cancelled_bookings": 1,
+          "user_name": "Dara"}],
+        [{"booking_date": now.date(),
+          "start_time": now.time().replace(second=0, microsecond=0),
+          "end_time": (now + timedelta(hours=1)).time().replace(second=0, microsecond=0),
+          "status": "BOOKED"}],
+    ]
+    statements = []
+
+    class Result:
+        def __init__(self, values):
+            self.values = values
+        def mappings(self):
+            return self
+        def first(self):
+            return self.values[0]
+        def all(self):
+            return self.values
+
+    class Connection:
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def execute(self, statement, params):
+            statements.append((str(statement), params))
+            return Result(rows.pop(0))
+
+    class Engine:
+        def connect(self):
+            return Connection()
+
+    monkeypatch.setattr(mini_app_module, "engine", Engine())
+    monkeypatch.setattr(
+        mini_app_module, "authenticate_admin", lambda _data: {"id": 42}
+    )
+    response = asyncio.run(mini_app_module.admin_user_statistics(
+        request_for("/admin/reports/users/7"), 7, "signed-data"
+    ))
+
+    assert response.status_code == 200
+    assert b"Dara" in response.body
+    assert b"Telegram user ID: 7" in response.body
+    assert b"Back to User Statistics" in response.body
+    assert len(statements) == 5
+    assert all(sql.lstrip().upper().startswith("SELECT") for sql, _ in statements)
+    assert all(params == {"telegram_user_id": 7} for _, params in statements)
+
+
 def test_shared_user_header_shows_room_status_below_title(mini_app_module):
     template = mini_app_module.templates.env.get_template("_user_header.html")
     html = template.render(

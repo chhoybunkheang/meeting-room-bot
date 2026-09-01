@@ -1060,6 +1060,7 @@ def render_admin_dashboard(
     telegram_init_data: str,
     feedback: str = "",
     feedback_type: str = "success",
+    initial_tab: str = "dashboard",
 ):
     now = current_meeting_datetime()
     today = now.date()
@@ -1178,9 +1179,25 @@ def render_admin_dashboard(
                 .mappings()
                 .all()
             )
+            active_users = (
+                conn.execute(
+                    text("""
+                        SELECT telegram_user_id,
+                               (ARRAY_AGG(user_name ORDER BY created_at DESC))[1] AS user_name,
+                               COUNT(*) AS action_count
+                        FROM user_activity
+                        GROUP BY telegram_user_id
+                        ORDER BY action_count DESC, user_name
+                        LIMIT 10
+                    """)
+                )
+                .mappings()
+                .all()
+            )
         except Exception:
             logger.exception("Could not load recent admin activity")
             recent_activity = []
+            active_users = []
 
     if active_slot:
         is_blocked = active_slot["user_name"].startswith(ROOM_BLOCK_PREFIX)
@@ -1213,9 +1230,77 @@ def render_admin_dashboard(
             "upcoming_bookings": upcoming_bookings,
             "room_blocks": room_blocks,
             "recent_activity": recent_activity,
+            "active_users": active_users,
             "today": today,
             "feedback": feedback,
             "feedback_type": feedback_type,
+            "bot_username": BOT_USERNAME_CACHE or "TelegramBot",
+            "initial_tab": initial_tab if initial_tab in {
+                "dashboard", "bookings", "rooms", "reports", "settings"
+            } else "dashboard",
+        },
+    )
+
+
+@app.post("/admin/reports/users/{telegram_user_id}", response_class=HTMLResponse)
+async def admin_user_statistics(
+    request: Request,
+    telegram_user_id: int,
+    telegram_init_data: str = Form(...),
+):
+    """Render read-only activity and booking analytics for one Telegram user."""
+    authenticate_admin(telegram_init_data)
+    params = {"telegram_user_id": telegram_user_id}
+
+    with engine.connect() as conn:
+        activity_summary = conn.execute(text("""
+            SELECT (ARRAY_AGG(user_name ORDER BY created_at DESC))[1] AS user_name,
+                   COUNT(*) AS total_actions, MIN(created_at) AS first_activity,
+                   MAX(created_at) AS last_activity
+            FROM user_activity WHERE telegram_user_id = :telegram_user_id
+        """), params).mappings().first()
+        command_counts = conn.execute(text("""
+            SELECT command, COUNT(*) AS action_count
+            FROM user_activity WHERE telegram_user_id = :telegram_user_id
+            GROUP BY command ORDER BY action_count DESC, command
+        """), params).mappings().all()
+        recent_activity = conn.execute(text("""
+            SELECT command, created_at FROM user_activity
+            WHERE telegram_user_id = :telegram_user_id
+            ORDER BY created_at DESC LIMIT 20
+        """), params).mappings().all()
+        booking_summary = conn.execute(text("""
+            SELECT COUNT(*) AS total_bookings,
+                   COUNT(*) FILTER (WHERE status = 'CANCELLED') AS cancelled_bookings,
+                   (ARRAY_AGG(user_name ORDER BY created_at DESC))[1] AS user_name
+            FROM bookings WHERE telegram_user_id = :telegram_user_id
+        """), params).mappings().first()
+        recent_bookings = conn.execute(text("""
+            SELECT booking_date, start_time, end_time, status FROM bookings
+            WHERE telegram_user_id = :telegram_user_id
+            ORDER BY booking_date DESC, start_time DESC LIMIT 10
+        """), params).mappings().all()
+
+    total_actions = activity_summary["total_actions"] or 0
+    total_bookings = booking_summary["total_bookings"] or 0
+    if not total_actions and not total_bookings:
+        raise HTTPException(status_code=404, detail="User statistics not found")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin_user_statistics.html",
+        context={
+            "telegram_init_data": telegram_init_data,
+            "telegram_user_id": telegram_user_id,
+            "user_name": activity_summary["user_name"] or booking_summary["user_name"],
+            "total_actions": total_actions,
+            "total_bookings": total_bookings,
+            "cancelled_bookings": booking_summary["cancelled_bookings"] or 0,
+            "first_activity": activity_summary["first_activity"],
+            "last_activity": activity_summary["last_activity"],
+            "command_counts": command_counts,
+            "recent_activity": recent_activity,
+            "recent_bookings": recent_bookings,
             "bot_username": BOT_USERNAME_CACHE or "TelegramBot",
         },
     )
@@ -1225,9 +1310,12 @@ def render_admin_dashboard(
 async def admin_dashboard(
     request: Request,
     telegram_init_data: str = Form(...),
+    initial_tab: str = Form("dashboard"),
 ):
     admin_user = authenticate_admin(telegram_init_data)
-    return render_admin_dashboard(request, admin_user, telegram_init_data)
+    return render_admin_dashboard(
+        request, admin_user, telegram_init_data, initial_tab=initial_tab
+    )
 
 
 @app.post("/admin/bookings/add", response_class=HTMLResponse)
