@@ -39,7 +39,6 @@
         {% if 'book' in report_command %}{% set report_ns.booking_actions = report_ns.booking_actions + 1 %}{% endif %}
         {% if 'cancel' in report_command %}{% set report_ns.cancellation_actions = report_ns.cancellation_actions + 1 %}{% endif %}
     {% endfor %}
-    {% set report_users = recent_activity|groupby('user_name')|list %}
     {% set report_commands = recent_activity|groupby('command')|list %}
     <section id="reportsView" class="admin-reports admin-tab-panel" data-admin-panel="reports" aria-labelledby="reportsTitle" hidden>
         <div class="reports-heading">
@@ -53,7 +52,7 @@
         <section id="userStatisticsOverview" class="report-panel" aria-labelledby="userStatsTitle">
             <h3 id="userStatsTitle">User Statistics Overview</h3>
             <div id="bookingReportKpis" class="report-kpis">
-                <article><span class="kpi-icon blue">♙</span><strong>{{ report_users|length }}</strong><b>Recent Users</b><small>in latest activity</small></article>
+                <article><span class="kpi-icon blue">♙</span><strong>{{ active_users|length }}</strong><b>Active Users</b><small>top recorded users</small></article>
                 <article><span class="kpi-icon green">▥</span><strong>{{ recent_activity|length }}</strong><b>Recent Actions</b><small>latest recorded</small></article>
                 <article><span class="kpi-icon orange">▣</span><strong>{{ report_ns.booking_actions }}</strong><b>Booking Actions</b><small>in latest activity</small></article>
                 <article><span class="kpi-icon red">⊘</span><strong>{{ report_ns.cancellation_actions }}</strong><b>Cancel Actions</b><small>in latest activity</small></article>
@@ -74,7 +73,7 @@
         <div class="report-table-grid">
             <section class="report-panel" aria-labelledby="activeUsersTitle">
                 <div class="report-panel-heading"><h3 id="activeUsersTitle">Most Active Users</h3><span>Latest records</span></div>
-                {% if report_users %}<div class="report-user-list">{% for user_name, entries in report_users %}<article><span class="report-avatar">{{ user_name[:1]|upper }}</span><div><strong>{{ user_name }}</strong><small>Recent activity</small></div><b>{{ entries|length }} action{{ '' if entries|length == 1 else 's' }}</b></article>{% endfor %}</div>{% else %}<p class="admin-empty">No user activity yet.</p>{% endif %}
+                {% if active_users %}<div class="report-user-list">{% for user in active_users %}<form method="post" action="/admin/reports/users/{{ user.telegram_user_id }}"><input type="hidden" name="telegram_init_data" value="{{ telegram_init_data }}"><button type="submit"><span class="report-avatar">{{ user.user_name[:1]|upper }}</span><span class="report-user-copy"><strong>{{ user.user_name }}</strong><small>ID {{ user.telegram_user_id }}</small></span><b>{{ user.action_count }} action{{ '' if user.action_count == 1 else 's' }}</b><i aria-hidden="true">›</i></button></form>{% endfor %}</div>{% else %}<p class="admin-empty">No user activity yet.</p>{% endif %}
             </section>
             <section id="reportsRecentActivity" class="report-panel" aria-labelledby="recentActivityTitle">
                 <div class="report-panel-heading"><h3 id="recentActivityTitle">Recent Activity</h3><span>{{ recent_activity|length }} recent</span></div>
@@ -176,7 +175,7 @@ document.querySelectorAll('[data-close-panel]').forEach((button)=>button.addEven
 document.querySelectorAll('[data-edit-booking]').forEach((button)=>button.addEventListener('click',()=>{const form=document.getElementById('editBooking'+button.dataset.editBooking);if(form)form.hidden=!form.hidden;}));
 document.querySelectorAll('[data-close-edit]').forEach((button)=>button.addEventListener('click',()=>button.closest('.inline-edit').hidden=true));
 document.querySelectorAll('.admin-booking-row').forEach((row)=>{const initials=row.dataset.userName.trim().split(/\s+/).filter(Boolean).slice(0,2).map((part)=>part[0].toUpperCase()).join('')||'U';const avatar=row.querySelector('.admin-avatar');if(avatar)avatar.textContent=initials;});
-const adminTabPanels=[...document.querySelectorAll('[data-admin-panel]')];const adminNavLinks=[...document.querySelectorAll('.admin-bottom-nav [data-admin-tab]')];function selectAdminTab(tab,targetId=''){adminTabPanels.forEach((panel)=>panel.hidden=panel.dataset.adminPanel!==tab);adminNavLinks.forEach((link)=>{const selected=link.dataset.adminTab===tab;link.classList.toggle('active',selected);if(selected)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});const target=(targetId&&document.getElementById(targetId))||document.querySelector(`[data-admin-panel="${tab}"]`);target?.scrollIntoView({behavior:'smooth',block:'start'});}document.querySelectorAll('[data-admin-tab]').forEach((link)=>link.addEventListener('click',(event)=>{event.preventDefault();selectAdminTab(link.dataset.adminTab,(link.getAttribute('href')||'').replace('#',''));}));selectAdminTab('dashboard');
+const adminTabPanels=[...document.querySelectorAll('[data-admin-panel]')];const adminNavLinks=[...document.querySelectorAll('.admin-bottom-nav [data-admin-tab]')];function selectAdminTab(tab,targetId=''){adminTabPanels.forEach((panel)=>panel.hidden=panel.dataset.adminPanel!==tab);adminNavLinks.forEach((link)=>{const selected=link.dataset.adminTab===tab;link.classList.toggle('active',selected);if(selected)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});const target=(targetId&&document.getElementById(targetId))||document.querySelector(`[data-admin-panel="${tab}"]`);target?.scrollIntoView({behavior:'smooth',block:'start'});}document.querySelectorAll('[data-admin-tab]').forEach((link)=>link.addEventListener('click',(event)=>{event.preventDefault();selectAdminTab(link.dataset.adminTab,(link.getAttribute('href')||'').replace('#',''));}));selectAdminTab('{{ initial_tab|default("dashboard") }}');
 </script>
 </body>
 </html>
