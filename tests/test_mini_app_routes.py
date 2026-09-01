@@ -250,3 +250,22 @@ def test_admin_template_has_five_true_tab_panels_with_dashboard_default(
     for tab in ("bookings", "rooms", "reports", "settings"):
         assert f'data-admin-panel="{tab}"' in html
     assert html.count('data-admin-tab="dashboard" aria-current="page"') == 1
+    assert html.index('id="roomTitle">B03 Meeting Room') < html.index(
+        'id="roomStatus"'
+    )
+
+
+def test_shared_user_header_shows_room_status_below_title(mini_app_module):
+    template = mini_app_module.templates.env.get_template("_user_header.html")
+    html = template.render(
+        get_user_room_status=lambda: {
+            "type": "available",
+            "label": "Available",
+            "detail": "Ready to book",
+        }
+    )
+
+    assert html.index("B03 Meeting Room") < html.index("user-room-status available")
+    assert "Room Status" in html
+    assert "Available" in html
+    assert "Ready to book" in html

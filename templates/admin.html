@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f9fd">
     <title>Admin Panel · B03 Meeting Room</title>
     <link rel="stylesheet" href="/static/css/styles.css?v=20260829-1">
-    <link rel="stylesheet" href="/static/css/admin.css?v=20260829-8">
+    <link rel="stylesheet" href="/static/css/admin.css?v=20260901-1">
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 </head>
 <body class="admin-body">
@@ -21,11 +21,11 @@
 
     {% if feedback %}<div class="admin-feedback {{ feedback_type }}" role="status">{{ feedback }}</div>{% endif %}
 
-    <section class="admin-hero shared-admin-head" aria-labelledby="welcomeTitle">
+    <section class="admin-hero shared-admin-head" aria-labelledby="roomTitle">
         <div class="hero-pattern" aria-hidden="true"></div>
         <div class="admin-hero-copy">
             <span class="admin-calendar" aria-hidden="true">▣</span>
-            <div><h2 id="welcomeTitle">Welcome, {{ admin_name|upper }}</h2><p>Manage meeting room bookings and settings.</p></div>
+            <div><h2 id="roomTitle">B03 Meeting Room</h2><p>Welcome, {{ admin_name|upper }}</p></div>
         </div>
         <div id="roomStatus" class="room-status {{ room_status_type }}">
             <div><span>Room Status</span><strong><i></i>{{ room_status }}</strong><small>{{ room_status_detail }}</small></div>

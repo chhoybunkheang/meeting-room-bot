@@ -101,6 +101,69 @@ def notification_first_name(user_name: str) -> str:
 templates.env.globals["first_name"] = notification_first_name
 
 
+def get_user_room_status() -> dict:
+    """Return the live room status displayed in the shared user header."""
+    meeting_now = current_meeting_datetime()
+    current_date = meeting_now.date()
+    current_time = meeting_now.time().replace(tzinfo=None)
+
+    try:
+        with engine.connect() as conn:
+            next_slot = (
+                conn.execute(
+                    text("""
+                        SELECT user_name, booking_date, start_time, end_time
+                        FROM bookings
+                        WHERE status = 'BOOKED'
+                          AND (
+                              booking_date > :current_date
+                              OR (
+                                  booking_date = :current_date
+                                  AND end_time > :current_time
+                              )
+                          )
+                        ORDER BY booking_date, start_time
+                        LIMIT 1
+                    """),
+                    {
+                        "current_date": current_date,
+                        "current_time": current_time,
+                    },
+                )
+                .mappings()
+                .first()
+            )
+    except Exception:
+        logger.exception("Could not load room status for the user header")
+        return {
+            "type": "unknown",
+            "label": "Status unavailable",
+            "detail": "Please check the schedule below",
+        }
+
+    if (
+        next_slot
+        and next_slot["booking_date"] == current_date
+        and next_slot["start_time"] <= current_time
+    ):
+        is_blocked = next_slot["user_name"].startswith(ROOM_BLOCK_PREFIX)
+        return {
+            "type": "blocked" if is_blocked else "booked",
+            "label": "Blocked" if is_blocked else "Currently Booked",
+            "detail": f"Until {next_slot['end_time'].strftime('%H:%M')}",
+        }
+
+    if next_slot and next_slot["booking_date"] == current_date:
+        detail = f"Available until {next_slot['start_time'].strftime('%H:%M')}"
+    else:
+        detail = "Ready to book"
+
+    return {"type": "available", "label": "Available", "detail": detail}
+
+
+templates.env.globals["get_user_room_status"] = get_user_room_status
+
+
 async def get_bot_username() -> str:
     """Return the current Telegram bot username with a short-lived cache."""
     global BOT_USERNAME_CACHE, BOT_USERNAME_CACHE_EXPIRES_AT, BOT_USERNAME_LOCK
