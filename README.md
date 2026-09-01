@@ -39,6 +39,7 @@ Telegram bot for meeting room booking
    MINI_APP_URL=https://your-web-service.up.railway.app
    GROUP_CHAT_ID=your_telegram_group_chat_id
    ADMIN_ID=your_telegram_admin_user_id
+   MEETING_TIMEZONE=Asia/Phnom_Penh
    USE_WEBHOOK=false
    TELEGRAM_INIT_DATA_MAX_AGE=3600
    ```
@@ -59,6 +60,7 @@ Telegram bot for meeting room booking
 - `MINI_APP_URL`: Public URL of the FastAPI Mini App
 - `GROUP_CHAT_ID`: The chat ID of your group (use `/chatid` command)
 - `ADMIN_ID`: Your Telegram user ID (use `/myid` command)
+- `MEETING_TIMEZONE`: IANA timezone used for booking dates and meeting status (defaults to `Asia/Phnom_Penh`)
 - `USE_WEBHOOK`: Keep `false` for the separately deployed polling worker
 - `TELEGRAM_INIT_DATA_MAX_AGE`: Maximum Mini App credential age in seconds
 

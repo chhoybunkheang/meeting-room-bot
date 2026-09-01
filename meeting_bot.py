@@ -61,6 +61,7 @@ if not DATABASE_URL:
     raise ValueError("❌ DATABASE_URL environment variable is not set!")
 GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID"))
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
+MEETING_TIMEZONE = ZoneInfo(os.getenv("MEETING_TIMEZONE", "Asia/Phnom_Penh"))
 
 engine = create_engine(
     DATABASE_URL,
@@ -127,7 +128,7 @@ async def log_user_action(user, command):
     try:
         await asyncio.to_thread(save_log)
 
-        now = datetime.now(ZoneInfo("Asia/Phnom_Penh"))
+        now = datetime.now(MEETING_TIMEZONE)
         now_str = now.strftime("%d/%m/%Y %H:%M:%S")
 
         print(f"✅ Logged {command} by {user.first_name} ({user.id}) at {now_str}")
@@ -334,7 +335,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     await log_user_action(user, "/book")
-    tz = ZoneInfo("Asia/Phnom_Penh")
+    tz = MEETING_TIMEZONE
     now_pp = datetime.now(tz)
     keyboard = _build_month_keyboard(now_pp)
 
@@ -351,7 +352,7 @@ async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_T
     await query.answer()
 
     data = query.data or ""
-    tz = ZoneInfo("Asia/Phnom_Penh")
+    tz = MEETING_TIMEZONE
 
     if data == "month:choose":
         now_pp = datetime.now(tz)
@@ -824,7 +825,7 @@ async def delete_booking_by_number(
     else:
         message = "📋 No bookings left."
 
-    detail_key = str(int(datetime.now(ZoneInfo("Asia/Phnom_Penh")).timestamp() * 1000))
+    detail_key = str(int(datetime.now(MEETING_TIMEZONE).timestamp() * 1000))
 
     cancel_details_store[detail_key] = {
         "name": user.first_name,
@@ -874,7 +875,7 @@ async def end_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ You don’t have any active meetings to end.")
         return
 
-    tz = ZoneInfo("Asia/Phnom_Penh")
+    tz = MEETING_TIMEZONE
     now = datetime.now(tz)
 
     active_meeting = None
@@ -1043,9 +1044,9 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             last_action = info["last_action"]
 
             if last_action.tzinfo is None:
-                last_action = last_action.replace(tzinfo=ZoneInfo("Asia/Phnom_Penh"))
+                last_action = last_action.replace(tzinfo=MEETING_TIMEZONE)
             else:
-                last_action = last_action.astimezone(ZoneInfo("Asia/Phnom_Penh"))
+                last_action = last_action.astimezone(MEETING_TIMEZONE)
 
             last_text = last_action.strftime("%d/%m/%Y %H:%M:%S")
 
@@ -1094,7 +1095,7 @@ async def log_user_action(user, command):
     try:
         await asyncio.to_thread(save_log)
 
-        now = datetime.now(ZoneInfo("Asia/Phnom_Penh"))
+        now = datetime.now(MEETING_TIMEZONE)
         now_str = now.strftime("%d/%m/%Y %H:%M:%S")
 
         print(f"✅ Logged {command} by {user.first_name} ({user.id}) at {now_str}")
@@ -1402,7 +1403,7 @@ async def auto_cleanup(
         context = update
         update = None
 
-    tz = ZoneInfo("Asia/Phnom_Penh")
+    tz = MEETING_TIMEZONE
     now = datetime.now(tz)
 
     def cleanup_db():
@@ -1655,7 +1656,7 @@ async def handle_take_slot_button(update: Update, context: ContextTypes.DEFAULT_
 
     # Check if the slot has already expired
     try:
-        tz = ZoneInfo("Asia/Phnom_Penh")
+        tz = MEETING_TIMEZONE
         start_str = time_str.split("-")[0].strip()
         slot_start = datetime.strptime(
             f"{date_str} {start_str}", "%d/%m/%Y %H:%M"
