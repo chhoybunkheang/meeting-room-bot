@@ -15,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from telegram import Bot
-from exchange_rates import format_rate, load_exchange_rates
+from exchange_rates import fetch_latest_gdt_rate, format_rate, load_exchange_rates
 from telegram_auth import validate_telegram_init_data as validate_signed_init_data
 
 # =========================================================
@@ -570,6 +570,8 @@ async def exchange_rate(request: Request):
     if not exchange_data["years"]:
         raise HTTPException(status_code=503, detail="Exchange-rate data unavailable")
 
+    latest_official_rate = await run_in_threadpool(fetch_latest_gdt_rate)
+
     return templates.TemplateResponse(
         request=request,
         name="exchange_rate.html",
@@ -577,6 +579,7 @@ async def exchange_rate(request: Request):
             "exchange_years": exchange_data["years"],
             "selected_year": next(iter(exchange_data["years"])),
             "last_updated": exchange_data["last_updated"],
+            "latest_official_rate": latest_official_rate,
         },
     )
 

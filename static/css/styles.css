@@ -1034,12 +1034,8 @@ input[readonly] {
 .user-home .app-footer { padding-top: 14px; }
 .user-home .tools-empty { margin: 0; padding: 18px; border-radius: 13px; background: #f6f8fc; color: var(--muted); text-align: center; }
 .user-home .tools-panel .admin-panel-button { min-height: 54px; }
-.user-home .tool-card { display: grid; grid-template-columns: 50px minmax(0,1fr) auto; align-items: center; gap: 13px; min-height: 76px; padding: 13px 15px; border: 1px solid #e1e8f4; border-radius: 17px; background: #fff; color: var(--ink); text-decoration: none; box-shadow: 0 8px 22px rgba(31,62,125,.07); }
-.user-home .tool-card-icon { display: grid; width: 50px; height: 50px; place-items: center; border-radius: 15px; background: var(--blue-soft); font-size: 27px; }
-.user-home .tool-card > span:nth-child(2) { display: grid; gap: 3px; }
-.user-home .tool-card strong { font-size: 17px; }
-.user-home .tool-card small { color: var(--muted); font-size: 13px; }
-.user-home .tool-card-chevron { color: #8b95a9; font-size: 31px; }
+.user-home .exchange-tool-entry { margin: 0; }
+.user-home .exchange-tool-entry .admin-panel-button { min-height: 54px; }
 .user-home .tools-panel .admin-entry { margin-top: 12px; }
 
 .exchange-rate-page { padding-bottom: 105px; }
@@ -1064,6 +1060,16 @@ input[readonly] {
 .exchange-updated { display: grid; gap: 4px; text-align: right; }
 .exchange-updated span { color: var(--muted); font-size: 12px; }
 .exchange-updated strong { color: var(--blue-dark); font-size: 14px; }
+.latest-official-card { display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center; gap: 18px; margin-bottom: 16px; padding: 16px 20px; border: 1px solid #c9eadc; border-radius: 18px; background: linear-gradient(130deg,#fbfffd,#effaf5); box-shadow: 0 8px 24px rgba(31,62,125,.07); }
+.latest-official-card > div:first-child { display: grid; gap: 4px; }
+.latest-official-card > div:first-child > span { font-weight: 750; }
+.latest-official-card small,.latest-official-date span { color: var(--muted); font-size: 12px; }
+.latest-official-card a { color: var(--blue-dark); font-weight: 750; }
+.latest-official-card > strong { color: #139a5b; font-size: 25px; white-space: nowrap; }
+.latest-official-card > strong small { color: #139a5b; font-size: 13px; }
+.latest-official-date { display: grid; gap: 4px; text-align: right; }
+.latest-official-date time { color: var(--blue-dark); font-size: 14px; font-weight: 750; }
+.latest-official-card > p { grid-column: 2 / -1; margin: 0; color: var(--muted); font-size: 13px; }
 .exchange-table-card { overflow: hidden; }
 .exchange-table-scroll { overflow-x: auto; }
 .exchange-table-card table { width: 100%; min-width: 700px; border-collapse: collapse; }
@@ -1120,6 +1126,9 @@ input[readonly] {
     .currency-card h2 { font-size: 20px; }
     .currency-card p { font-size: 12px; }
     .exchange-updated { grid-column: 1 / -1; padding-top: 9px; border-top: 1px solid var(--line); text-align: left; }
+    .latest-official-card { grid-template-columns: 1fr auto; gap: 10px; padding: 14px; }
+    .latest-official-date { grid-column: 1 / -1; padding-top: 9px; border-top: 1px solid #d7eee4; text-align: left; }
+    .latest-official-card > p { grid-column: 1 / -1; }
     .exchange-table-card th,.exchange-table-card td { padding: 14px 10px; }
 }
 

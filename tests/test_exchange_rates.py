@@ -2,7 +2,7 @@ from datetime import datetime
 
 from openpyxl import Workbook
 
-from exchange_rates import format_rate, load_exchange_rates
+from exchange_rates import format_rate, load_exchange_rates, parse_gdt_latest_rate
 
 
 def build_workbook(path):
@@ -51,3 +51,18 @@ def test_rate_formatting_uses_whole_numbers_and_thousands_separators():
     assert format_rate(4002.3) == "4,002"
     assert format_rate(4011.9) == "4,012"
     assert format_rate(4050.0) == "4,050"
+
+
+def test_gdt_parser_reads_first_official_usd_rate():
+    page = """
+        <table><tr><th>Release Date</th><th>Symbol</th><th>Official Rate</th></tr>
+        <tr><td>September 2, 2026</td><td>USD/KHR</td><td>4,047</td>
+        <td>National Bank of Cambodia</td></tr>
+        <tr><td>September 1, 2026</td><td>USD/KHR</td><td>4,046</td>
+        <td>National Bank of Cambodia</td></tr></table>
+    """
+
+    latest = parse_gdt_latest_rate(page)
+
+    assert latest["rate"] == 4047
+    assert latest["published_at"] == datetime(2026, 9, 2)

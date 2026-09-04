@@ -36,7 +36,20 @@
     <section class="currency-card">
         <div class="currency-flags" aria-hidden="true"><span>🇺🇸</span><b>⇄</b><span>🇰🇭</span></div>
         <div><h2>USD / KHR</h2><p>US Dollar to Cambodian Riel</p></div>
-        {% if last_updated %}<div class="exchange-updated"><span>Last updated</span><strong>{{ last_updated.strftime('%d %b %Y, %I:%M %p') }}</strong></div>{% endif %}
+        {% if last_updated %}<div class="exchange-updated"><span>Workbook updated</span><strong>{{ last_updated.strftime('%d %b %Y, %I:%M %p') }}</strong></div>{% endif %}
+    </section>
+
+    <section class="latest-official-card" aria-live="polite">
+        <div>
+            <span>Latest Official Rate</span>
+            <small>Published by the National Bank of Cambodia via <a href="{{ latest_official_rate.source_url if latest_official_rate else 'https://www.tax.gov.kh/gdtwebsiteweb/en/exchange-rate' }}" target="_blank" rel="noopener noreferrer">GDT</a></small>
+        </div>
+        {% if latest_official_rate %}
+        <strong>{{ latest_official_rate.rate|rate }} <small>KHR/USD</small></strong>
+        <div class="latest-official-date"><span>Release date</span><time datetime="{{ latest_official_rate.published_at.strftime('%Y-%m-%d') }}">{{ latest_official_rate.published_at.strftime('%d %b %Y') }}</time></div>
+        {% else %}
+        <p>Latest GDT rate is temporarily unavailable. Monthly workbook data is shown below.</p>
+        {% endif %}
     </section>
 
     <section id="monthlyTableCard" class="exchange-table-card">

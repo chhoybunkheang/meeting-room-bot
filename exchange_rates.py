@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import html
+import re
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from statistics import mean
 
 from openpyxl import load_workbook
+import requests
 
 
 MONTHS = {
@@ -23,6 +28,11 @@ MONTHS = {
     "november": (11, "Nov"),
     "december": (12, "Dec"),
 }
+
+GDT_EXCHANGE_RATE_URL = "https://www.tax.gov.kh/gdtwebsiteweb/en/exchange-rate"
+GDT_CACHE_SECONDS = 6 * 60 * 60
+_gdt_cache = {"expires_at": 0.0, "value": None}
+_gdt_cache_lock = threading.Lock()
 
 
 def _number(value):
@@ -128,3 +138,49 @@ def format_rate(value) -> str:
     if value is None:
         return "—"
     return f"{int(float(value) + 0.5):,}"
+
+
+def parse_gdt_latest_rate(page_html: str) -> dict | None:
+    """Extract the first published USD/KHR row from the GDT page."""
+    text = re.sub(r"<[^>]+>", " ", page_html)
+    text = re.sub(r"\s+", " ", html.unescape(text))
+    match = re.search(
+        r"([A-Z][a-z]+\s+\d{1,2},\s+\d{4})\s+USD/KHR\s+([\d,]+)\s+"
+        r"National Bank of Cambodia",
+        text,
+    )
+    if not match:
+        return None
+    try:
+        published_at = datetime.strptime(match.group(1), "%B %d, %Y")
+        rate = int(match.group(2).replace(",", ""))
+    except ValueError:
+        return None
+    return {"rate": rate, "published_at": published_at, "source_url": GDT_EXCHANGE_RATE_URL}
+
+
+def fetch_latest_gdt_rate(force: bool = False) -> dict | None:
+    """Fetch GDT's latest official rate, cached to avoid excessive requests."""
+    now = time.monotonic()
+    with _gdt_cache_lock:
+        if not force and now < _gdt_cache["expires_at"]:
+            return _gdt_cache["value"]
+
+        try:
+            response = requests.get(
+                GDT_EXCHANGE_RATE_URL,
+                headers={"User-Agent": "B03-Meeting-Room-Mini-App/1.0"},
+                timeout=8,
+            )
+            response.raise_for_status()
+            latest = parse_gdt_latest_rate(response.text)
+        except requests.RequestException:
+            latest = None
+
+        if latest:
+            _gdt_cache["value"] = latest
+            _gdt_cache["expires_at"] = now + GDT_CACHE_SECONDS
+        else:
+            # Preserve the last known official rate during a temporary outage.
+            _gdt_cache["expires_at"] = now + 10 * 60
+        return _gdt_cache["value"]

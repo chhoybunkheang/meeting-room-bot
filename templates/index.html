@@ -140,11 +140,12 @@
                 <div><span class="section-kicker">Utilities</span><h2 id="toolsPanelTitle">Tools</h2></div>
                 <button id="closeToolsButton" type="button" class="icon-button" aria-label="Close tools">×</button>
             </div>
-            <a class="tool-card" href="/tools/exchange-rate">
-                <span class="tool-card-icon" aria-hidden="true">💱</span>
-                <span><strong>Exchange Rate</strong><small>USD to Cambodian Riel</small></span>
-                <span class="tool-card-chevron" aria-hidden="true">›</span>
-            </a>
+            <form class="exchange-tool-entry" method="get" action="/tools/exchange-rate">
+                <button type="submit" class="admin-panel-button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3m3 3-3 3M17 17H6l3 3m-3-3 3-3"/></svg>
+                    Exchange Rate
+                </button>
+            </form>
             <form id="adminPanelForm" class="admin-entry" method="post" action="/admin">
                 <input id="adminInitData" name="telegram_init_data" type="hidden">
                 <button type="submit" class="admin-panel-button">

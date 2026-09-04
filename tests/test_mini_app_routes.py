@@ -350,11 +350,18 @@ def test_exchange_rate_page_keeps_tools_navigation_active(mini_app_module):
         },
         selected_year=2025,
         last_updated=None,
+        latest_official_rate={
+            "rate": 4047,
+            "published_at": datetime(2026, 9, 2),
+        },
     )
 
     assert 'href="/tools/exchange-rate"' not in html
     assert 'href="/?panel=tools#toolsPanel"' in html
     assert html.count('class="active"') == 1
-    assert ">Tools\n" in html
+    assert 'class="active" href="/?panel=tools#toolsPanel"' in html
+    assert 'aria-current="page"' in html
     assert "Exchange Rate" in html
+    assert "Latest Official Rate" in html
+    assert "4,047" in html
     assert "Export" not in html
