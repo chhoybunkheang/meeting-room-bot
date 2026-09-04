@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f4f7ff">
+    <title>Exchange Rate · B03 Meeting Room</title>
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260904-1">
+    <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
+</head>
+<body class="user-home exchange-rate-page">
+<main class="app-shell">
+    <header class="exchange-header">
+        <a href="/?panel=tools#toolsPanel" aria-label="Back to Tools">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
+        <h1>Exchange Rate</h1>
+        <button id="refreshRates" type="button" aria-label="Refresh exchange rates">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"/><path d="M19 11a7 7 0 1 0 1 5"/></svg>
+        </button>
+    </header>
+
+    <section class="exchange-summary-grid" aria-label="Exchange-rate summary">
+        <article class="exchange-control-card">
+            <label for="fiscalYear">Fiscal Year</label>
+            <select id="fiscalYear">
+                {% for year in exchange_years %}<option value="{{ year }}"{% if year == selected_year %} selected{% endif %}>{{ year }}</option>{% endfor %}
+            </select>
+        </article>
+        <article class="exchange-average-card">
+            <span id="annualRateLabel">Average Annual Exchange Rate ({{ selected_year }})</span>
+            <strong><span id="annualRate">{{ exchange_years[selected_year].annual|rate }}</span> <small>KHR</small></strong>
+        </article>
+    </section>
+
+    <section class="currency-card">
+        <div class="currency-flags" aria-hidden="true"><span>🇺🇸</span><b>⇄</b><span>🇰🇭</span></div>
+        <div><h2>USD / KHR</h2><p>US Dollar to Cambodian Riel</p></div>
+        {% if last_updated %}<div class="exchange-updated"><span>Last updated</span><strong>{{ last_updated.strftime('%d %b %Y, %I:%M %p') }}</strong></div>{% endif %}
+    </section>
+
+    <section id="monthlyTableCard" class="exchange-table-card">
+        <div class="exchange-table-scroll">
+            <table>
+                <thead><tr>
+                    <th>Month</th><th>Purchase<small>Parallel Market</small></th><th>Sale<small>Parallel Market</small></th><th>Midpoint<small>Parallel Market</small></th><th>Official Rate<small>NBC</small></th>
+                </tr></thead>
+                <tbody id="monthlyRates"></tbody>
+            </table>
+        </div>
+    </section>
+    <section id="noMonthlyRates" class="exchange-empty" hidden>
+        <strong>Monthly exchange-rate data is not available for this fiscal year.</strong>
+        <span>The annual exchange rate is still shown above.</span>
+    </section>
+
+    <aside class="exchange-note"><span aria-hidden="true">i</span><p><strong>Note:</strong> Parallel Market Rate is the average rate from major money changers in Cambodia. Official Exchange Rate is from the National Bank of Cambodia.</p></aside>
+
+    {% set active_tab = 'tools' %}
+    {% set tools_local = false %}
+    {% set my_booking_input_id = 'exchangeMyBookingsInitData' %}
+    {% set my_booking_input_class = '' %}
+    {% include '_user_bottom_nav.html' %}
+    {% include '_user_footer.html' %}
+</main>
+<script>
+const exchangeRates = {{ exchange_years|tojson }};
+const yearSelect = document.getElementById("fiscalYear");
+const rateFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+function renderYear(year) {
+    const record = exchangeRates[year];
+    document.getElementById("annualRateLabel").textContent = `Average Annual Exchange Rate (${year})`;
+    document.getElementById("annualRate").textContent = record.annual == null ? "—" : rateFormatter.format(record.annual);
+    const tableCard = document.getElementById("monthlyTableCard");
+    const emptyState = document.getElementById("noMonthlyRates");
+    const body = document.getElementById("monthlyRates");
+    body.replaceChildren();
+    record.months.forEach(function (month) {
+        const row = document.createElement("tr");
+        [month.month, month.purchase, month.sale, month.midpoint, month.official].forEach(function (value, index) {
+            const cell = document.createElement(index === 0 ? "th" : "td");
+            if (index === 0) cell.scope = "row";
+            cell.textContent = index === 0 ? value : rateFormatter.format(value);
+            row.appendChild(cell);
+        });
+        body.appendChild(row);
+    });
+    tableCard.hidden = record.months.length === 0;
+    emptyState.hidden = record.months.length !== 0;
+}
+yearSelect.addEventListener("change", function () { renderYear(this.value); });
+document.getElementById("refreshRates").addEventListener("click", function () { window.location.reload(); });
+document.getElementById("helpNavButton").addEventListener("click", function () {});
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); document.getElementById("exchangeMyBookingsInitData").value = tg.initData || ""; }
+renderYear(yearSelect.value);
+</script>
+</body>
+</html>

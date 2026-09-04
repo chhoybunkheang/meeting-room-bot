@@ -328,3 +328,33 @@ def test_shared_user_header_shows_room_status_below_title(mini_app_module):
     assert "Room Status" in html
     assert "Available" in html
     assert "Ready to book" in html
+
+
+def test_exchange_rate_page_keeps_tools_navigation_active(mini_app_module):
+    template = mini_app_module.templates.env.get_template("exchange_rate.html")
+    html = template.render(
+        exchange_years={
+            2025: {
+                "annual": 4050,
+                "months": [
+                    {
+                        "number": 1,
+                        "month": "Jan",
+                        "purchase": 4018,
+                        "sale": 4032,
+                        "midpoint": 4025,
+                        "official": 4024,
+                    }
+                ],
+            }
+        },
+        selected_year=2025,
+        last_updated=None,
+    )
+
+    assert 'href="/tools/exchange-rate"' not in html
+    assert 'href="/?panel=tools#toolsPanel"' in html
+    assert html.count('class="active"') == 1
+    assert ">Tools\n" in html
+    assert "Exchange Rate" in html
+    assert "Export" not in html

@@ -15,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from telegram import Bot
+from exchange_rates import format_rate, load_exchange_rates
 from telegram_auth import validate_telegram_init_data as validate_signed_init_data
 
 # =========================================================
@@ -68,6 +69,9 @@ async def add_performance_headers(request: Request, call_next):
     return response
 
 BASE_DIR = Path(__file__).resolve().parent
+EXCHANGE_RATE_WORKBOOK = Path(
+    os.getenv("EXCHANGE_RATE_WORKBOOK", BASE_DIR / "data" / "Exchange Rate.xlsx")
+)
 
 app.mount(
     "/static",
@@ -76,6 +80,7 @@ app.mount(
 )
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+templates.env.filters["rate"] = format_rate
 
 BOOKINGS_PER_PAGE = 10
 SCHEDULE_NOTIFICATION_LIMIT = 20
@@ -547,6 +552,31 @@ async def home(
             "schedule_filter": schedule_filter,
             "admin_id": ADMIN_ID,
             "bot_username": await get_bot_username(),
+        },
+    )
+
+
+@app.get("/tools/exchange-rate", response_class=HTMLResponse)
+async def exchange_rate(request: Request):
+    """Display annual and available monthly rates from the supplied workbook."""
+    try:
+        exchange_data = await run_in_threadpool(
+            load_exchange_rates, EXCHANGE_RATE_WORKBOOK
+        )
+    except (OSError, ValueError):
+        logger.exception("Could not load exchange-rate workbook")
+        raise HTTPException(status_code=503, detail="Exchange-rate data unavailable")
+
+    if not exchange_data["years"]:
+        raise HTTPException(status_code=503, detail="Exchange-rate data unavailable")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="exchange_rate.html",
+        context={
+            "exchange_years": exchange_data["years"],
+            "selected_year": next(iter(exchange_data["years"])),
+            "last_updated": exchange_data["last_updated"],
         },
     )
 
