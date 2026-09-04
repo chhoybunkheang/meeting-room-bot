@@ -1,0 +1,17 @@
+{
+  "source": "National Bank of Cambodia Economic and Monetary Statistics Bulletin No. 385, March 2026, Table 12",
+  "source_url": "https://www.nbc.gov.kh/download_files/publication/eco_mon_sta_eng/Review%20385%20Mar-2026_En.pdf",
+  "published_through": "2026-03",
+  "monthly_rates": [
+    {"year": 2025, "month": "June", "purchase": 4008, "sale": 4019, "midpoint": 4013, "official": 4010},
+    {"year": 2025, "month": "July", "purchase": 4003, "sale": 4012, "midpoint": 4008, "official": 4006},
+    {"year": 2025, "month": "August", "purchase": 4005, "sale": 4015, "midpoint": 4010, "official": 4008},
+    {"year": 2025, "month": "September", "purchase": 4007, "sale": 4018, "midpoint": 4013, "official": 4010},
+    {"year": 2025, "month": "October", "purchase": 4017, "sale": 4028, "midpoint": 4023, "official": 4020},
+    {"year": 2025, "month": "November", "purchase": 4005, "sale": 4016, "midpoint": 4011, "official": 4007},
+    {"year": 2025, "month": "December", "purchase": 4012, "sale": 4024, "midpoint": 4018, "official": 4013},
+    {"year": 2026, "month": "January", "purchase": 4023, "sale": 4034, "midpoint": 4029, "official": 4026},
+    {"year": 2026, "month": "February", "purchase": 4009, "sale": 4019, "midpoint": 4014, "official": 4010},
+    {"year": 2026, "month": "March", "purchase": 4000, "sale": 4008, "midpoint": 4004, "official": 4001}
+  ]
+}

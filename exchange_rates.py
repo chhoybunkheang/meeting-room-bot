@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from statistics import mean
 
 from openpyxl import load_workbook
 import requests
@@ -31,6 +31,7 @@ MONTHS = {
 
 GDT_EXCHANGE_RATE_URL = "https://www.tax.gov.kh/gdtwebsiteweb/en/exchange-rate"
 GDT_CACHE_SECONDS = 6 * 60 * 60
+GDT_TOI_CLOSING_RATE_START_YEAR = 2022
 _gdt_cache = {"expires_at": 0.0, "value": None}
 _gdt_cache_lock = threading.Lock()
 
@@ -66,6 +67,7 @@ def _annual_year(value):
 
 def load_exchange_rates(path: str | Path) -> dict:
     """Return annual and available monthly rates without assuming fixed rows."""
+    path = Path(path)
     workbook = load_workbook(path, data_only=True, read_only=True)
     years: dict[int, dict] = {}
 
@@ -122,10 +124,41 @@ def load_exchange_rates(path: str | Path) -> dict:
     modified = workbook.properties.modified
     workbook.close()
 
+    updates_path = path.with_name("exchange_rate_updates.json")
+    if updates_path.exists():
+        updates = json.loads(updates_path.read_text(encoding="utf-8"))
+        for update in updates.get("monthly_rates", []):
+            year = int(update["year"])
+            record = years.setdefault(year, {"annual": None, "months": []})
+            month_key = str(update["month"]).strip().casefold()
+            if month_key not in MONTHS:
+                continue
+            month_number, month_label = MONTHS[month_key]
+            month_record = {
+                "number": month_number,
+                "month": month_label,
+                "purchase": float(update["purchase"]),
+                "sale": float(update["sale"]),
+                "midpoint": float(update["midpoint"]),
+                "official": float(update["official"]),
+            }
+            record["months"] = [
+                month for month in record["months"] if month["number"] != month_number
+            ]
+            record["months"].append(month_record)
+
     for year, record in years.items():
         record["months"].sort(key=lambda month: month["number"])
-        if record["annual"] is None and record["months"]:
-            record["annual"] = mean(month["official"] for month in record["months"])
+        december = next(
+            (month for month in record["months"] if month["number"] == 12), None
+        )
+        if (
+            record["annual"] is None
+            and year >= GDT_TOI_CLOSING_RATE_START_YEAR
+            and december
+        ):
+            record["annual"] = december["official"]
+        record["toi_rate_available"] = record["annual"] is not None
 
     return {
         "years": dict(sorted(years.items(), reverse=True)),

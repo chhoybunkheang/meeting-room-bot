@@ -1043,7 +1043,7 @@ input[readonly] {
 .exchange-header h1 { margin: 0; font-size: clamp(27px,5vw,38px); text-align: center; }
 .exchange-header a,.exchange-header button { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 13px; background: transparent; color: var(--ink); cursor: pointer; }
 .exchange-header svg { width: 31px; height: 31px; stroke-width: 2.2; }
-.exchange-summary-grid { display: grid; grid-template-columns: minmax(210px,.7fr) minmax(300px,1.3fr); gap: 14px; margin-bottom: 14px; }
+.exchange-summary-grid { position: sticky; z-index: 15; top: max(0px,env(safe-area-inset-top)); display: grid; grid-template-columns: minmax(210px,.7fr) minmax(300px,1.3fr); gap: 14px; margin: 0 -6px 14px; padding: 8px 6px; border-radius: 20px; background: rgba(243,246,251,.96); box-shadow: 0 10px 18px rgba(31,62,125,.08); backdrop-filter: blur(14px); }
 .exchange-control-card,.exchange-average-card,.currency-card,.exchange-table-card,.exchange-empty,.exchange-note { border: 1px solid #dfe7f4; border-radius: 18px; background: #fff; box-shadow: 0 8px 24px rgba(31,62,125,.07); }
 .exchange-control-card { padding: 16px; }
 .exchange-control-card label { display: block; margin-bottom: 8px; font-weight: 700; }
@@ -1052,6 +1052,7 @@ input[readonly] {
 .exchange-average-card > span { margin-bottom: 7px; font-size: 15px; }
 .exchange-average-card strong { color: #139a5b; font-size: clamp(34px,7vw,48px); line-height: 1; }
 .exchange-average-card small { font-size: 18px; }
+.exchange-average-card > small { margin-top: 7px; color: var(--muted); font-size: 12px; }
 .currency-card { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 18px; margin-bottom: 16px; padding: 17px 20px; }
 .currency-flags { display: flex; align-items: center; gap: 9px; font-size: 36px; }
 .currency-flags b { color: var(--blue); font-size: 22px; }
@@ -1118,8 +1119,13 @@ input[readonly] {
     .user-home .schedule-chevron { font-size: 25px; }
     .user-home .user-bottom-nav { width: calc(100% - 12px); padding-right: 2px; padding-left: 2px; }
     .user-home .user-bottom-nav a,.user-home .user-bottom-nav button,.user-home .user-bottom-nav .static-nav { font-size: 10px; }
-    .exchange-summary-grid { grid-template-columns: 1fr; }
-    .exchange-average-card { min-height: 125px; }
+    .exchange-summary-grid { grid-template-columns: minmax(118px,.8fr) minmax(0,1.2fr); gap: 7px; margin-inline: -4px; padding: 6px 4px; border-radius: 16px; }
+    .exchange-control-card,.exchange-average-card { min-height: 104px; padding: 10px; border-radius: 14px; }
+    .exchange-control-card label { margin-bottom: 6px; font-size: 12px; }
+    .exchange-control-card select { min-height: 45px; padding-inline: 9px; font-size: 18px; }
+    .exchange-average-card > span { margin-bottom: 5px; font-size: 11px; line-height: 1.25; }
+    .exchange-average-card strong { font-size: clamp(25px,8vw,34px); }
+    .exchange-average-card small { font-size: 12px; }
     .currency-card { grid-template-columns: auto minmax(0,1fr); gap: 10px; padding: 14px; }
     .currency-flags { gap: 5px; font-size: 27px; }
     .currency-flags b { font-size: 17px; }

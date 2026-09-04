@@ -3,6 +3,7 @@ import importlib
 import re
 import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import dotenv
@@ -336,6 +337,7 @@ def test_exchange_rate_page_keeps_tools_navigation_active(mini_app_module):
         exchange_years={
             2025: {
                 "annual": 4050,
+                "toi_rate_available": True,
                 "months": [
                     {
                         "number": 1,
@@ -363,5 +365,13 @@ def test_exchange_rate_page_keeps_tools_navigation_active(mini_app_module):
     assert 'aria-current="page"' in html
     assert "Exchange Rate" in html
     assert "Latest Official Rate" in html
+    assert "GDT Annual TOI Exchange Rate" in html
+    assert "Year-end official rate" in html
     assert "4,047" in html
     assert "Export" not in html
+
+
+def test_exchange_rate_summary_is_sticky_and_mobile_compact():
+    stylesheet = (Path(__file__).resolve().parents[1] / "static" / "css" / "styles.css").read_text(encoding="utf-8")
+    assert ".exchange-summary-grid { position: sticky;" in stylesheet
+    assert "grid-template-columns: minmax(118px,.8fr) minmax(0,1.2fr)" in stylesheet

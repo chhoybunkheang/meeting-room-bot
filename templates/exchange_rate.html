@@ -28,8 +28,9 @@
             </select>
         </article>
         <article class="exchange-average-card">
-            <span id="annualRateLabel">Average Annual Exchange Rate ({{ selected_year }})</span>
-            <strong><span id="annualRate">{{ exchange_years[selected_year].annual|rate }}</span> <small>KHR</small></strong>
+            <span id="annualRateLabel">GDT Annual TOI Exchange Rate ({{ selected_year }})</span>
+            <strong><span id="annualRate">{{ exchange_years[selected_year].annual|rate }}</span> <small id="annualRateUnit">{% if exchange_years[selected_year].toi_rate_available %}KHR/USD{% endif %}</small></strong>
+            <small id="annualRateStatus">{% if exchange_years[selected_year].toi_rate_available %}Year-end official rate{% else %}Not available until fiscal year end{% endif %}</small>
         </article>
     </section>
 
@@ -82,8 +83,12 @@ const yearSelect = document.getElementById("fiscalYear");
 const rateFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 function renderYear(year) {
     const record = exchangeRates[year];
-    document.getElementById("annualRateLabel").textContent = `Average Annual Exchange Rate (${year})`;
+    document.getElementById("annualRateLabel").textContent = `GDT Annual TOI Exchange Rate (${year})`;
     document.getElementById("annualRate").textContent = record.annual == null ? "—" : rateFormatter.format(record.annual);
+    document.getElementById("annualRateUnit").textContent = record.toi_rate_available ? "KHR/USD" : "";
+    document.getElementById("annualRateStatus").textContent = record.toi_rate_available
+        ? "Year-end official rate"
+        : "Not available until fiscal year end";
     const tableCard = document.getElementById("monthlyTableCard");
     const emptyState = document.getElementById("noMonthlyRates");
     const body = document.getElementById("monthlyRates");
