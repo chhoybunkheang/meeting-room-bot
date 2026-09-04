@@ -3,6 +3,7 @@ import importlib
 import re
 import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import dotenv
@@ -328,3 +329,50 @@ def test_shared_user_header_shows_room_status_below_title(mini_app_module):
     assert "Room Status" in html
     assert "Available" in html
     assert "Ready to book" in html
+
+
+def test_exchange_rate_page_keeps_help_navigation_active(mini_app_module):
+    template = mini_app_module.templates.env.get_template("exchange_rate.html")
+    html = template.render(
+        exchange_years={
+            2025: {
+                "annual": 4050,
+                "toi_rate_available": True,
+                "annual_method": "gdt_year_end",
+                "months": [
+                    {
+                        "number": 1,
+                        "month": "Jan",
+                        "purchase": 4018,
+                        "sale": 4032,
+                        "midpoint": 4025,
+                        "official": 4024,
+                    }
+                ],
+            }
+        },
+        selected_year=2025,
+        last_updated=None,
+        latest_official_rate={
+            "rate": 4047,
+            "published_at": datetime(2026, 9, 2),
+        },
+    )
+
+    assert 'href="/tools/exchange-rate"' not in html
+    assert 'href="/?panel=help#helpPanel"' in html
+    assert html.count('class="active"') == 1
+    assert 'class="active" href="/?panel=help#helpPanel"' in html
+    assert 'aria-current="page"' in html
+    assert "Exchange Rate" in html
+    assert "Latest Official Rate" in html
+    assert "GDT Annual TOI Exchange Rate" in html
+    assert "GDT method · year-end official rate" in html
+    assert "4,047" in html
+    assert "Export" not in html
+
+
+def test_exchange_rate_summary_is_sticky_and_mobile_compact():
+    stylesheet = (Path(__file__).resolve().parents[1] / "static" / "css" / "styles.css").read_text(encoding="utf-8")
+    assert ".exchange-summary-grid { position: sticky;" in stylesheet
+    assert "grid-template-columns: minmax(118px,.8fr) minmax(0,1.2fr)" in stylesheet

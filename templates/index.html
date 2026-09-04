@@ -150,8 +150,22 @@
             </form>
         </section>
 
+        <section id="helpPanel" class="form-panel tools-panel" aria-labelledby="helpPanelTitle">
+            <div class="form-heading">
+                <div><span class="section-kicker">Resources</span><h2 id="helpPanelTitle">Help</h2></div>
+                <button id="closeHelpButton" type="button" class="icon-button" aria-label="Close help">×</button>
+            </div>
+            <form class="exchange-tool-entry" method="get" action="/tools/exchange-rate">
+                <button type="submit" class="admin-panel-button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3m3 3-3 3M17 17H6l3 3m-3-3 3-3"/></svg>
+                    Exchange Rate
+                </button>
+            </form>
+        </section>
+
         {% set active_tab = 'schedules' %}
         {% set tools_local = true %}
+        {% set help_local = true %}
         {% set my_booking_input_id = 'myBookingsInitData' %}
         {% set my_booking_input_class = '' %}
         {% include '_user_bottom_nav.html' %}
@@ -162,6 +176,7 @@
     <script>
         const bookingForm = document.getElementById("bookingForm");
         const toolsPanel = document.getElementById("toolsPanel");
+        const helpPanel = document.getElementById("helpPanel");
         const bookingCreationForm = document.getElementById("bookingCreationForm");
         const bookingSubmitButton = document.getElementById("bookingSubmitButton");
         const openBookingButton = document.getElementById("openBookingButton");
@@ -176,6 +191,7 @@
         const toolsEmptyMessage = document.getElementById("toolsEmptyMessage");
         const openToolsButton = document.getElementById("openToolsButton");
         const closeToolsButton = document.getElementById("closeToolsButton");
+        const closeHelpButton = document.getElementById("closeHelpButton");
         const helpNavButton = document.getElementById("helpNavButton");
         const configuredAdminId = {{ admin_id }};
 
@@ -256,6 +272,16 @@
             toolsPanel.style.display = "none";
         }
 
+        function showHelpPanel() {
+            helpPanel.style.display = "block";
+            helpPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+            setActiveNavigation(helpNavButton);
+        }
+
+        function hideHelpPanel() {
+            helpPanel.style.display = "none";
+        }
+
         function setActiveNavigation(activeItem) {
             document.querySelectorAll(".user-bottom-nav .active").forEach(function (item) {
                 item.classList.remove("active");
@@ -271,12 +297,16 @@
         closeBookingButtons.forEach(function (button) { button.addEventListener("click", hideBookingForm); });
         openToolsButton.addEventListener("click", showToolsPanel);
         closeToolsButton.addEventListener("click", hideToolsPanel);
-        helpNavButton.addEventListener("click", function () { setActiveNavigation(helpNavButton); });
+        helpNavButton.addEventListener("click", showHelpPanel);
+        closeHelpButton.addEventListener("click", hideHelpPanel);
         if (new URLSearchParams(window.location.search).get("panel") === "tools") {
             showToolsPanel();
         }
         if (new URLSearchParams(window.location.search).get("panel") === "booking") {
             showBookingForm();
+        }
+        if (new URLSearchParams(window.location.search).get("panel") === "help") {
+            showHelpPanel();
         }
 
         bookingCreationForm.addEventListener("submit", function () {
