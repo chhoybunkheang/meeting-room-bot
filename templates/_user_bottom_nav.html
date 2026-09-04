@@ -27,9 +27,17 @@
         Tools
     </a>
     {% endif %}
+    {% if help_local %}
     <button id="helpNavButton" class="{% if active_tab == 'help' %}active{% endif %}" type="button"
         {% if active_tab == 'help' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.3 2.2c-.8.4-1.1.9-1.1 1.8m0 3.2v.1"/></svg>
         Help
     </button>
+    {% else %}
+    <a id="helpNavButton" class="{% if active_tab == 'help' %}active{% endif %}" href="/?panel=help#helpPanel"
+        {% if active_tab == 'help' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.3 2.2c-.8.4-1.1.9-1.1 1.8m0 3.2v.1"/></svg>
+        Help
+    </a>
+    {% endif %}
 </nav>

@@ -35,6 +35,7 @@ def test_parser_supports_monthly_and_annual_only_years(tmp_path):
         "annual": 4200,
         "months": [],
         "toi_rate_available": True,
+        "annual_method": "historical_average",
     }
 
 
@@ -51,6 +52,7 @@ def test_parser_does_not_invent_toi_rate_before_fiscal_year_end(tmp_path):
 
     assert result["years"][2024]["annual"] is None
     assert result["years"][2024]["toi_rate_available"] is False
+    assert result["years"][2024]["annual_method"] == "unavailable"
 
 
 def test_parser_uses_year_end_official_rate_for_completed_toi_year(tmp_path):
@@ -66,6 +68,7 @@ def test_parser_uses_year_end_official_rate_for_completed_toi_year(tmp_path):
 
     assert result["years"][2024]["annual"] == 4025
     assert result["years"][2024]["toi_rate_available"] is True
+    assert result["years"][2024]["annual_method"] == "gdt_year_end"
 
 
 def test_parser_merges_verified_monthly_updates_without_duplicates(tmp_path):
@@ -103,6 +106,26 @@ def test_parser_merges_verified_monthly_updates_without_duplicates(tmp_path):
     assert result["years"][2026]["months"][0]["official"] == 4026
     assert result["years"][2026]["annual"] is None
     assert result["years"][2026]["toi_rate_available"] is False
+
+
+def test_parser_uses_sourced_pre_2022_annual_average(tmp_path):
+    path = tmp_path / "rates.xlsx"
+    build_workbook(path)
+    path.with_name("exchange_rate_updates.json").write_text(
+        json.dumps(
+            {
+                "historical_annual_average_rates": [
+                    {"year": 2021, "rate": 4098.72279505888}
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = load_exchange_rates(path)
+
+    assert result["years"][2021]["annual"] == 4098.72279505888
+    assert result["years"][2021]["annual_method"] == "historical_average"
 
 
 def test_rate_formatting_uses_whole_numbers_and_thousands_separators():

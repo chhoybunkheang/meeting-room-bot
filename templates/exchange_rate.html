@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f4f7ff">
     <title>Exchange Rate · B03 Meeting Room</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=20260904-1">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260904-2">
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 </head>
 <body class="user-home exchange-rate-page">
 <main class="app-shell">
     <header class="exchange-header">
-        <a href="/?panel=tools#toolsPanel" aria-label="Back to Tools">
+        <a href="/?panel=help#helpPanel" aria-label="Back to Help">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
         </a>
         <h1>Exchange Rate</h1>
@@ -28,9 +28,9 @@
             </select>
         </article>
         <article class="exchange-average-card">
-            <span id="annualRateLabel">GDT Annual TOI Exchange Rate ({{ selected_year }})</span>
+            <span id="annualRateLabel">{% if exchange_years[selected_year].annual_method == 'historical_average' %}Historical Annual Average Exchange Rate ({{ selected_year }}){% else %}GDT Annual TOI Exchange Rate ({{ selected_year }}){% endif %}</span>
             <strong><span id="annualRate">{{ exchange_years[selected_year].annual|rate }}</span> <small id="annualRateUnit">{% if exchange_years[selected_year].toi_rate_available %}KHR/USD{% endif %}</small></strong>
-            <small id="annualRateStatus">{% if exchange_years[selected_year].toi_rate_available %}Year-end official rate{% else %}Not available until fiscal year end{% endif %}</small>
+            <small id="annualRateStatus">{% if exchange_years[selected_year].annual_method == 'historical_average' %}Pre-2022 method · annual average{% elif exchange_years[selected_year].toi_rate_available %}GDT method · year-end official rate{% else %}Not available until fiscal year end{% endif %}</small>
         </article>
     </section>
 
@@ -68,10 +68,11 @@
         <span>The annual exchange rate is still shown above.</span>
     </section>
 
-    <aside class="exchange-note"><span aria-hidden="true">i</span><p><strong>Note:</strong> Parallel Market Rate is the average rate from major money changers in Cambodia. Official Exchange Rate is from the National Bank of Cambodia.</p></aside>
+    <aside class="exchange-note"><span aria-hidden="true">i</span><p><strong>Note:</strong> Parallel Market Rate is the average rate from major money changers in Cambodia. Official Exchange Rate is from the National Bank of Cambodia. For TOI, 2022 onward uses the year-end official-rate method; earlier years show the historical annual-average method and should be checked against the guidance for that filing year.</p></aside>
 
-    {% set active_tab = 'tools' %}
+    {% set active_tab = 'help' %}
     {% set tools_local = false %}
+    {% set help_local = false %}
     {% set my_booking_input_id = 'exchangeMyBookingsInitData' %}
     {% set my_booking_input_class = '' %}
     {% include '_user_bottom_nav.html' %}
@@ -83,11 +84,15 @@ const yearSelect = document.getElementById("fiscalYear");
 const rateFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 function renderYear(year) {
     const record = exchangeRates[year];
-    document.getElementById("annualRateLabel").textContent = `GDT Annual TOI Exchange Rate (${year})`;
+    document.getElementById("annualRateLabel").textContent = record.annual_method === "historical_average"
+        ? `Historical Annual Average Exchange Rate (${year})`
+        : `GDT Annual TOI Exchange Rate (${year})`;
     document.getElementById("annualRate").textContent = record.annual == null ? "—" : rateFormatter.format(record.annual);
     document.getElementById("annualRateUnit").textContent = record.toi_rate_available ? "KHR/USD" : "";
-    document.getElementById("annualRateStatus").textContent = record.toi_rate_available
-        ? "Year-end official rate"
+    document.getElementById("annualRateStatus").textContent = record.annual_method === "historical_average"
+        ? "Pre-2022 method · annual average"
+        : record.toi_rate_available
+        ? "GDT method · year-end official rate"
         : "Not available until fiscal year end";
     const tableCard = document.getElementById("monthlyTableCard");
     const emptyState = document.getElementById("noMonthlyRates");
@@ -108,7 +113,6 @@ function renderYear(year) {
 }
 yearSelect.addEventListener("change", function () { renderYear(this.value); });
 document.getElementById("refreshRates").addEventListener("click", function () { window.location.reload(); });
-document.getElementById("helpNavButton").addEventListener("click", function () {});
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); document.getElementById("exchangeMyBookingsInitData").value = tg.initData || ""; }
 renderYear(yearSelect.value);

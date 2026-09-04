@@ -127,6 +127,12 @@ def load_exchange_rates(path: str | Path) -> dict:
     updates_path = path.with_name("exchange_rate_updates.json")
     if updates_path.exists():
         updates = json.loads(updates_path.read_text(encoding="utf-8"))
+        for annual_rate in updates.get("historical_annual_average_rates", []):
+            year = int(annual_rate["year"])
+            if year < GDT_TOI_CLOSING_RATE_START_YEAR:
+                years.setdefault(year, {"annual": None, "months": []})["annual"] = float(
+                    annual_rate["rate"]
+                )
         for update in updates.get("monthly_rates", []):
             year = int(update["year"])
             record = years.setdefault(year, {"annual": None, "months": []})
@@ -159,6 +165,13 @@ def load_exchange_rates(path: str | Path) -> dict:
         ):
             record["annual"] = december["official"]
         record["toi_rate_available"] = record["annual"] is not None
+        record["annual_method"] = (
+            "historical_average"
+            if record["annual"] is not None and year < GDT_TOI_CLOSING_RATE_START_YEAR
+            else "gdt_year_end"
+            if record["annual"] is not None
+            else "unavailable"
+        )
 
     return {
         "years": dict(sorted(years.items(), reverse=True)),
