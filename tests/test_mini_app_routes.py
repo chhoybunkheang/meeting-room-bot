@@ -111,17 +111,13 @@ def test_admin_booking_datetime_validation(
 def test_booking_date_validation_uses_configured_meeting_timezone(
     mini_app_module, monkeypatch
 ):
-    configured_now = datetime(
-        2026, 8, 30, 0, 15, tzinfo=ZoneInfo("Asia/Phnom_Penh")
-    )
+    configured_now = datetime(2026, 8, 30, 0, 15, tzinfo=ZoneInfo("Asia/Phnom_Penh"))
     monkeypatch.setattr(
         mini_app_module, "current_meeting_datetime", lambda: configured_now
     )
 
     with pytest.raises(HTTPException, match="Date cannot be in the past"):
-        mini_app_module.parse_booking_datetime_values(
-            "2026-08-29", "09:00", "10:00"
-        )
+        mini_app_module.parse_booking_datetime_values("2026-08-29", "09:00", "10:00")
 
     booking_date, _, _ = mini_app_module.parse_booking_datetime_values(
         "2026-08-30", "09:00", "10:00"
@@ -251,9 +247,7 @@ def test_admin_template_has_five_true_tab_panels_with_dashboard_default(
     for tab in ("bookings", "rooms", "reports", "settings"):
         assert f'data-admin-panel="{tab}"' in html
     assert html.count('data-admin-tab="dashboard" aria-current="page"') == 1
-    assert html.index('id="roomTitle">B03 Meeting Room') < html.index(
-        'id="roomStatus"'
-    )
+    assert html.index('id="roomTitle">B03 Meeting Room') < html.index('id="roomStatus"')
 
 
 def test_admin_user_statistics_is_read_only_and_renders_existing_data(
@@ -261,35 +255,53 @@ def test_admin_user_statistics_is_read_only_and_renders_existing_data(
 ):
     now = datetime(2026, 9, 1, 9, 30)
     rows = [
-        [{"user_name": "Dara", "total_actions": 5,
-          "first_activity": now - timedelta(days=3), "last_activity": now}],
-        [{"command": "/book", "action_count": 3},
-         {"command": "/start", "action_count": 2}],
+        [
+            {
+                "user_name": "Dara",
+                "total_actions": 5,
+                "first_activity": now - timedelta(days=3),
+                "last_activity": now,
+            }
+        ],
+        [
+            {"command": "/book", "action_count": 3},
+            {"command": "/start", "action_count": 2},
+        ],
         [{"command": "/book", "created_at": now}],
-        [{"total_bookings": 3, "cancelled_bookings": 1,
-          "user_name": "Dara"}],
-        [{"booking_date": now.date(),
-          "start_time": now.time().replace(second=0, microsecond=0),
-          "end_time": (now + timedelta(hours=1)).time().replace(second=0, microsecond=0),
-          "status": "BOOKED"}],
+        [{"total_bookings": 3, "cancelled_bookings": 1, "user_name": "Dara"}],
+        [
+            {
+                "booking_date": now.date(),
+                "start_time": now.time().replace(second=0, microsecond=0),
+                "end_time": (now + timedelta(hours=1))
+                .time()
+                .replace(second=0, microsecond=0),
+                "status": "BOOKED",
+            }
+        ],
     ]
     statements = []
 
     class Result:
         def __init__(self, values):
             self.values = values
+
         def mappings(self):
             return self
+
         def first(self):
             return self.values[0]
+
         def all(self):
             return self.values
 
     class Connection:
         def __enter__(self):
             return self
+
         def __exit__(self, *_args):
             return False
+
         def execute(self, statement, params):
             statements.append((str(statement), params))
             return Result(rows.pop(0))
@@ -299,12 +311,12 @@ def test_admin_user_statistics_is_read_only_and_renders_existing_data(
             return Connection()
 
     monkeypatch.setattr(mini_app_module, "engine", Engine())
-    monkeypatch.setattr(
-        mini_app_module, "authenticate_admin", lambda _data: {"id": 42}
+    monkeypatch.setattr(mini_app_module, "authenticate_admin", lambda _data: {"id": 42})
+    response = asyncio.run(
+        mini_app_module.admin_user_statistics(
+            request_for("/admin/reports/users/7"), 7, "signed-data"
+        )
     )
-    response = asyncio.run(mini_app_module.admin_user_statistics(
-        request_for("/admin/reports/users/7"), 7, "signed-data"
-    ))
 
     assert response.status_code == 200
     assert b"Dara" in response.body
@@ -361,6 +373,7 @@ def test_exchange_rate_page_keeps_help_navigation_active(mini_app_module):
             "rate": 4047,
             "published_at": datetime(2026, 9, 2),
         },
+        bot_username="test_bot",
     )
 
     assert 'href="/tools/exchange-rate"' not in html
@@ -369,33 +382,73 @@ def test_exchange_rate_page_keeps_help_navigation_active(mini_app_module):
     assert 'class="active" href="/?panel=help#helpPanel"' in html
     assert 'aria-current="page"' in html
     assert "Exchange Rate" in html
-    assert "Latest Official Rate" in html
+    normalized_html = " ".join(html.split())
+    assert "Latest Official Rate" in normalized_html
+    assert "Official rate from" in html
+    assert "telegram-mark" in html
+    assert "@test_bot" in html
+    assert normalized_html.index("@test_bot") > normalized_html.index("Monthly data does not determine annual TOI rates.")
+    assert normalized_html.index('class="currency-flags"') > normalized_html.index(
+        'id="fiscalYear"'
+    )
+    assert normalized_html.index("Release date") < normalized_html.index(
+        'id="latestOfficialRate"'
+    ) + 500
     assert "GDT Annual TOI Exchange Rate" in html
-    assert "Year-end official rate · published 2025-12-31" in html
+    assert "Year-end official rate · published 2025-12-31" in normalized_html
     assert "4,047" in html
     assert "Export" not in html
 
 
 def test_exchange_rate_summary_is_sticky_and_mobile_compact():
-    stylesheet = (Path(__file__).resolve().parents[1] / "static" / "css" / "styles.css").read_text(encoding="utf-8")
-    assert ".exchange-summary-grid { position: sticky;" in stylesheet
-    assert "grid-template-columns: minmax(118px,.8fr) minmax(0,1.2fr)" in stylesheet
+    stylesheet = (
+        Path(__file__).resolve().parents[1] / "static" / "css" / "styles.css"
+    ).read_text(encoding="utf-8")
+    normalized_stylesheet = " ".join(stylesheet.split())
+    assert ".exchange-summary-grid { position: sticky;" in normalized_stylesheet
+    assert (
+        "grid-template-columns: minmax(118px, .8fr) minmax(0, 1.2fr)"
+        in normalized_stylesheet
+    )
+    assert (
+        ".exchange-table-card th:first-child, .exchange-table-card td:first-child { position: sticky;"
+        in normalized_stylesheet
+    )
+    assert "width: 82px; min-width: 82px" in normalized_stylesheet
+    assert "width: 72px; min-width: 72px" in normalized_stylesheet
+    assert ".exchange-table-scroll-hint { display: block;" in normalized_stylesheet
 
 
-@pytest.mark.parametrize("query, selected, force", [
-    (b"year=2024&refresh=1", 2024, True),
-    (b"year=invalid", 2026, False),
-    (b"year=1900", 2026, False),
-])
-def test_exchange_route_selection_refresh_and_coverage(mini_app_module, monkeypatch, query, selected, force):
+@pytest.mark.parametrize(
+    "query, selected, force",
+    [
+        (b"year=2024&refresh=1", 2024, True),
+        (b"year=invalid", 2026, False),
+        (b"year=1900", 2026, False),
+    ],
+)
+def test_exchange_route_selection_refresh_and_coverage(
+    mini_app_module, monkeypatch, query, selected, force
+):
     calls = []
+
     def fetch(force=False):
         calls.append(force)
-        return {"value": None, "checked_at": None, "attempted_at": None,
-                "stale": True, "cached": False, "refresh_throttled": False}
+        return {
+            "value": None,
+            "checked_at": None,
+            "attempted_at": None,
+            "stale": True,
+            "cached": False,
+            "refresh_throttled": False,
+        }
+
     monkeypatch.setattr(mini_app_module, "fetch_latest_gdt_rate", fetch)
-    monkeypatch.setattr(mini_app_module, "EXCHANGE_RATE_WORKBOOK",
-                        Path(__file__).resolve().parents[1] / "data" / "Exchange Rate.xlsx")
+    monkeypatch.setattr(
+        mini_app_module,
+        "EXCHANGE_RATE_WORKBOOK",
+        Path(__file__).resolve().parents[1] / "data" / "Exchange Rate.xlsx",
+    )
     request = request_for("/tools/exchange-rate")
     request.scope["query_string"] = query
     response = asyncio.run(mini_app_module.exchange_rate(request))
@@ -412,16 +465,31 @@ def test_exchange_route_selection_refresh_and_coverage(mini_app_module, monkeypa
         assert "published 2024-12-31" in html
 
 
-def test_exchange_route_exposes_saved_rate_and_successful_check_time(mini_app_module, monkeypatch):
+def test_exchange_route_exposes_saved_rate_and_successful_check_time(
+    mini_app_module, monkeypatch
+):
     from datetime import timezone
+
     checked = datetime(2026, 9, 4, 10, 0, tzinfo=timezone.utc)
-    monkeypatch.setattr(mini_app_module, "fetch_latest_gdt_rate", lambda force=False: {
-        "value": {"rate": 4048, "published_at": datetime(2026, 9, 4),
-                  "source_url": "https://www.tax.gov.kh/en/exchange-rate"},
-        "checked_at": checked, "attempted_at": checked + timedelta(hours=7),
-        "stale": True, "cached": True, "refresh_throttled": False,
-    })
-    response = asyncio.run(mini_app_module.exchange_rate(request_for("/tools/exchange-rate")))
+    monkeypatch.setattr(
+        mini_app_module,
+        "fetch_latest_gdt_rate",
+        lambda force=False: {
+            "value": {
+                "rate": 4048,
+                "published_at": datetime(2026, 9, 4),
+                "source_url": "https://www.tax.gov.kh/en/exchange-rate",
+            },
+            "checked_at": checked,
+            "attempted_at": checked + timedelta(hours=7),
+            "stale": True,
+            "cached": True,
+            "refresh_throttled": False,
+        },
+    )
+    response = asyncio.run(
+        mini_app_module.exchange_rate(request_for("/tools/exchange-rate"))
+    )
     html = response.body.decode()
     assert "Last Known Official Rate" in html
     assert "4,048" in html
@@ -430,27 +498,48 @@ def test_exchange_route_exposes_saved_rate_and_successful_check_time(mini_app_mo
     assert "05 Sep 2026, 00:00:00 GMT+7" in html
 
 
-@pytest.mark.parametrize("year, rate, method", [
-    (2014, "4,038", "Annual average"), (2015, "4,060", "Annual average"),
-    (2016, "4,037", "Annual average"), (2017, "4,045", "Annual average"),
-    (2018, "4,045", "Annual average"), (2019, "4,052", "Annual average"),
-    (2020, "4,045", "Year-end rate"), (2021, "4,074", "Year-end rate"),
-])
+@pytest.mark.parametrize(
+    "year, rate, method",
+    [
+        (2014, "4,038", "Annual average"),
+        (2015, "4,060", "Annual average"),
+        (2016, "4,037", "Annual average"),
+        (2017, "4,045", "Annual average"),
+        (2018, "4,045", "Annual average"),
+        (2019, "4,052", "Annual average"),
+        (2020, "4,045", "Year-end rate"),
+        (2021, "4,074", "Year-end rate"),
+    ],
+)
 def test_reported_annual_rates_show_evidence_without_official_publication_claim(
     mini_app_module, monkeypatch, year, rate, method
 ):
-    monkeypatch.setattr(mini_app_module, "fetch_latest_gdt_rate", lambda force=False: {
-        "value": None, "checked_at": None, "attempted_at": None,
-        "stale": True, "cached": False, "refresh_throttled": False,
-    })
-    monkeypatch.setattr(mini_app_module, "EXCHANGE_RATE_WORKBOOK",
-                        Path(__file__).resolve().parents[1] / "data" / "Exchange Rate.xlsx")
+    monkeypatch.setattr(
+        mini_app_module,
+        "fetch_latest_gdt_rate",
+        lambda force=False: {
+            "value": None,
+            "checked_at": None,
+            "attempted_at": None,
+            "stale": True,
+            "cached": False,
+            "refresh_throttled": False,
+        },
+    )
+    monkeypatch.setattr(
+        mini_app_module,
+        "EXCHANGE_RATE_WORKBOOK",
+        Path(__file__).resolve().parents[1] / "data" / "Exchange Rate.xlsx",
+    )
     request = request_for("/tools/exchange-rate")
     request.scope["query_string"] = f"year={year}".encode()
     html = asyncio.run(mini_app_module.exchange_rate(request)).body.decode()
     assert f'id="annualRate">{rate}</span>' in html
     assert f'id="annualRateLabel">Annual TOI Exchange Rate ({year})</span>' in html
-    assert f'{method} - Corroborated by financial report; original notice not verified</small>' in html
-    assert 'published None' not in html
-    assert 'published null' not in html
-    assert f'id="annualRateUnit">KHR/USD</small>' in html
+    assert (
+        f"{method} - Corroborated by financial report; original notice not verified</small>"
+        in html
+    )
+    assert "published None" not in html
+    assert "published null" not in html
+    assert 'id="annualRateUnit">KHR/USD</small>' in html

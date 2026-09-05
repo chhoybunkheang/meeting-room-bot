@@ -155,11 +155,34 @@ def test_gdt_parser_reads_first_official_usd_rate():
     assert latest["published_at"] == datetime(2026, 9, 2)
 
 
+def test_gdt_parser_uses_table_cells_when_markup_and_date_format_vary():
+    page = """
+        <table>
+            <tr><th>Release Date</th><th>Symbol</th><th>Official Rate</th></tr>
+            <tr>
+                <td><span>Sep</span> 3, 2026</td>
+                <td>USD / KHR</td>
+                <td><strong>4,049</strong></td>
+                <td>National Bank of Cambodia</td>
+            </tr>
+        </table>
+    """
+
+    latest = parse_gdt_latest_rate(page)
+
+    assert latest["rate"] == 4049
+    assert latest["published_at"] == datetime(2026, 9, 3)
+
+
 def test_sourced_closing_rate_overrides_unverified_workbook_annual(tmp_path):
     path = tmp_path / "rates.xlsx"
     build_workbook(path)
-    source = {"year": 2025, "rate": 4013, "published_at": "2025-12-31",
-              "source_url": "https://www.tax.gov.kh/en/exchange-rate?for_year=2025&for_month=12"}
+    source = {
+        "year": 2025,
+        "rate": 4013,
+        "published_at": "2025-12-31",
+        "source_url": "https://www.tax.gov.kh/en/exchange-rate?for_year=2025&for_month=12",
+    }
     path.with_name("exchange_rate_updates.json").write_text(
         json.dumps({"annual_closing_rates": [source]}), encoding="utf-8"
     )
@@ -170,15 +193,26 @@ def test_sourced_closing_rate_overrides_unverified_workbook_annual(tmp_path):
     assert record["annual_published_at"] == "2025-12-31"
 
 
-@pytest.mark.parametrize("change", [
-    {"published_at": "2024-12-31"}, {"published_at": "2025-11-30"},
-    {"source_url": "https://example.com/rates"}, {"rate": -1}, {"rate": "NaN"},
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"published_at": "2024-12-31"},
+        {"published_at": "2025-11-30"},
+        {"source_url": "https://example.com/rates"},
+        {"rate": -1},
+        {"rate": "NaN"},
+    ],
+)
 def test_rejects_invalid_annual_source(tmp_path, change):
     path = tmp_path / "rates.xlsx"
     build_workbook(path)
-    source = {"year": 2025, "rate": 4013, "published_at": "2025-12-31",
-              "source_url": "https://www.tax.gov.kh/en/exchange-rate", **change}
+    source = {
+        "year": 2025,
+        "rate": 4013,
+        "published_at": "2025-12-31",
+        "source_url": "https://www.tax.gov.kh/en/exchange-rate",
+        **change,
+    }
     path.with_name("exchange_rate_updates.json").write_text(
         json.dumps({"annual_closing_rates": [source]}), encoding="utf-8"
     )
@@ -188,10 +222,17 @@ def test_rejects_invalid_annual_source(tmp_path, change):
 
 @pytest.fixture
 def gdt_fetch(monkeypatch):
-    monkeypatch.setattr(exchange_rates, "_gdt_cache", {
-        "expires_at": 0.0, "value": None, "checked_at": None,
-        "attempted_at": None, "stale": False,
-    })
+    monkeypatch.setattr(
+        exchange_rates,
+        "_gdt_cache",
+        {
+            "expires_at": 0.0,
+            "value": None,
+            "checked_at": None,
+            "attempted_at": None,
+            "stale": False,
+        },
+    )
     state = {"now": 100.0, "calls": 0, "fail": False, "malformed": False}
     monkeypatch.setattr(exchange_rates.time, "monotonic", lambda: state["now"])
 
@@ -202,8 +243,9 @@ def gdt_fetch(monkeypatch):
         response = requests.Response()
         response.status_code = 200
         response._content = (
-            b"unrecognized response" if state["malformed"] else
-            b"<td>September 4, 2026</td><td>USD/KHR</td><td>4048</td><td>National Bank of Cambodia</td>"
+            b"unrecognized response"
+            if state["malformed"]
+            else b"<td>September 4, 2026</td><td>USD/KHR</td><td>4048</td><td>National Bank of Cambodia</td>"
         )
         return response
 
@@ -225,7 +267,9 @@ def test_refresh_bypasses_cache_but_coalesces_repeated_clicks(gdt_fetch):
 
 
 @pytest.mark.parametrize("failure", ["fail", "malformed"])
-def test_failed_check_preserves_rate_and_marks_it_stale_then_recovers(gdt_fetch, failure):
+def test_failed_check_preserves_rate_and_marks_it_stale_then_recovers(
+    gdt_fetch, failure
+):
     first = exchange_rates.fetch_latest_gdt_rate()
     gdt_fetch["now"] += 31
     gdt_fetch[failure] = True
@@ -253,7 +297,10 @@ def test_initial_outage_has_no_rate_and_retries_after_failure_ttl(gdt_fetch):
 
 def test_bundled_rates_have_separate_year_end_sources():
     from pathlib import Path
-    result = load_exchange_rates(Path(__file__).resolve().parents[1] / "data" / "Exchange Rate.xlsx")
+
+    result = load_exchange_rates(
+        Path(__file__).resolve().parents[1] / "data" / "Exchange Rate.xlsx"
+    )
     for year, rate in {2022: 4117, 2023: 4085, 2024: 4025, 2025: 4013}.items():
         record = result["years"][year]
         assert record["annual"] == rate
@@ -263,15 +310,25 @@ def test_bundled_rates_have_separate_year_end_sources():
     assert result["years"][2013]["toi_rate_available"] is False
 
 
-@pytest.mark.parametrize("year, rate, method", [
-    (2014, 4038, "gdt_annual_average"), (2015, 4060, "gdt_annual_average"),
-    (2016, 4037, "gdt_annual_average"), (2017, 4045, "gdt_annual_average"),
-    (2018, 4045, "gdt_annual_average"), (2019, 4052, "gdt_annual_average"),
-    (2020, 4045, "gdt_year_end"), (2021, 4074, "gdt_year_end"),
-])
+@pytest.mark.parametrize(
+    "year, rate, method",
+    [
+        (2014, 4038, "gdt_annual_average"),
+        (2015, 4060, "gdt_annual_average"),
+        (2016, 4037, "gdt_annual_average"),
+        (2017, 4045, "gdt_annual_average"),
+        (2018, 4045, "gdt_annual_average"),
+        (2019, 4052, "gdt_annual_average"),
+        (2020, 4045, "gdt_year_end"),
+        (2021, 4074, "gdt_year_end"),
+    ],
+)
 def test_bundled_reported_toi_rates_replace_historical_averages(year, rate, method):
     from pathlib import Path
-    result = load_exchange_rates(Path(__file__).resolve().parents[1] / "data" / "Exchange Rate.xlsx")
+
+    result = load_exchange_rates(
+        Path(__file__).resolve().parents[1] / "data" / "Exchange Rate.xlsx"
+    )
     record = result["years"][year]
     assert record["annual"] == rate
     assert record["annual_method"] == method
@@ -284,13 +341,30 @@ def test_bundled_reported_toi_rates_replace_historical_averages(year, rate, meth
 def test_direct_official_source_takes_precedence_over_report(tmp_path):
     path = tmp_path / "rates.xlsx"
     build_workbook(path)
-    path.with_name("exchange_rate_updates.json").write_text(json.dumps({
-        "annual_closing_rates": [{"year": 2020, "rate": 4045,
-            "published_at": "2020-12-31", "source_url": "https://www.tax.gov.kh/en/exchange-rate"}],
-        "reported_annual_toi_rates": [{"year": 2020, "rate": 4000,
-            "annual_method": "gdt_year_end", "verification": "financial_report",
-            "source_url": "https://example.com/report.pdf"}],
-    }), encoding="utf-8")
+    path.with_name("exchange_rate_updates.json").write_text(
+        json.dumps(
+            {
+                "annual_closing_rates": [
+                    {
+                        "year": 2020,
+                        "rate": 4045,
+                        "published_at": "2020-12-31",
+                        "source_url": "https://www.tax.gov.kh/en/exchange-rate",
+                    }
+                ],
+                "reported_annual_toi_rates": [
+                    {
+                        "year": 2020,
+                        "rate": 4000,
+                        "annual_method": "gdt_year_end",
+                        "verification": "financial_report",
+                        "source_url": "https://example.com/report.pdf",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     record = load_exchange_rates(path)["years"][2020]
     assert record["annual"] == 4045
     assert record["annual_verification"] == "official_publication"
