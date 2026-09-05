@@ -39,6 +39,7 @@ from telegram.ext import (
 )
 from telegram.request import HTTPXRequest
 from telegram.warnings import PTBUserWarning
+from booking_validation import validate_booking_interval
 
 # Load environment variables from .env file
 load_dotenv(override=True)
@@ -161,7 +162,14 @@ async def save_booking(date_str, time_str, name, telegram_id):
     except ValueError:
         return "invalid"
 
-    if end_time <= start_time:
+    try:
+        validate_booking_interval(
+            booking_date,
+            start_time,
+            end_time,
+            datetime.now(MEETING_TIMEZONE),
+        )
+    except ValueError:
         return "invalid"
 
     def save_to_db():
