@@ -48,8 +48,13 @@ def render_page(template, selected_year=2026, latest_rate=4048):
                 "annual_published_at": None,
                 "annual_verification": None,
                 "months": [
-                    {"month": "Jan", "purchase": 4000, "sale": 4010,
-                     "midpoint": 4005, "official": 4004},
+                    {
+                        "month": "Jan",
+                        "purchase": 4000,
+                        "sale": 4010,
+                        "midpoint": 4005,
+                        "official": 4004,
+                    },
                 ],
             },
             2025: {
@@ -60,8 +65,13 @@ def render_page(template, selected_year=2026, latest_rate=4048):
                 "annual_published_at": "2025-12-31",
                 "annual_verification": "official_publication",
                 "months": [
-                    {"month": "Dec", "purchase": 4011, "sale": 4015,
-                     "midpoint": 4013, "official": 4013},
+                    {
+                        "month": "Dec",
+                        "purchase": 4011,
+                        "sale": 4015,
+                        "midpoint": 4013,
+                        "official": 4013,
+                    },
                 ],
             },
         },
@@ -93,6 +103,8 @@ def test_year_switch_renders_the_selected_monthly_data(mini_app_module):
         page.set_content(html)
         page.select_option("#fiscalYear", "2025")
 
+        assert page.locator(".exchange-control-card .currency-flags").is_visible()
+        assert page.locator(".currency-card .currency-flags").count() == 0
         assert page.locator("#annualRate").inner_text() == "4,013"
         monthly_text = " ".join(page.locator("#monthlyRates").inner_text().split())
         assert monthly_text == "Dec 4,011 4,015 4,013 4,013"
@@ -108,9 +120,16 @@ def test_refresh_failure_keeps_the_displayed_rate(mini_app_module):
         page = browser.new_page()
         page.set_content(html)
         page.click("#refreshRates")
-        page.wait_for_function("document.querySelector('#refreshStatus').textContent.includes('Could not refresh')")
+        page.wait_for_function(
+            "document.querySelector('#refreshStatus').textContent.includes('Could not refresh')"
+        )
 
         assert "4,048" in page.locator("#latestOfficialRate").inner_text()
+        release_date = page.locator(
+            "#latestOfficialRate > div:first-child .latest-official-date"
+        )
+        assert release_date.locator("span").inner_text() == "Release date"
+        assert release_date.locator("time").inner_text() == "04 Sep 2026"
         browser.close()
 
 
@@ -146,12 +165,21 @@ def test_mobile_table_keeps_month_visible_and_shows_scroll_hint(mini_app_module)
         browser = playwright.chromium.launch()
         page = browser.new_page(viewport={"width": 390, "height": 844})
         page.set_content(html)
-        page.add_style_tag(path=str(Path(__file__).resolve().parents[1] / "static" / "css" / "styles.css"))
+        page.add_style_tag(
+            path=str(
+                Path(__file__).resolve().parents[1] / "static" / "css" / "styles.css"
+            )
+        )
         scroll = page.locator(".exchange-table-scroll")
         month_cell = page.locator("#monthlyRates th").first
 
         assert page.locator(".exchange-table-scroll-hint").is_visible()
-        assert page.evaluate("getComputedStyle(document.querySelector('#monthlyRates th')).position") == "sticky"
+        assert (
+            page.evaluate(
+                "getComputedStyle(document.querySelector('#monthlyRates th')).position"
+            )
+            == "sticky"
+        )
         initial_x = month_cell.bounding_box()["x"]
         scroll.evaluate("element => element.scrollLeft = 180")
         page.wait_for_timeout(50)

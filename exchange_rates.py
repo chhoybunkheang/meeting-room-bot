@@ -13,9 +13,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlparse
 
-from openpyxl import load_workbook
 import requests
-
+from openpyxl import load_workbook
 
 MONTHS = {
     "january": (1, "Jan"),
@@ -36,8 +35,13 @@ GDT_EXCHANGE_RATE_URL = "https://www.tax.gov.kh/gdtwebsiteweb/en/exchange-rate"
 GDT_CACHE_SECONDS = 6 * 60 * 60
 GDT_REFRESH_MIN_SECONDS = 30
 GDT_TOI_CLOSING_RATE_START_YEAR = 2020
-_gdt_cache = {"expires_at": 0.0, "value": None, "checked_at": None,
-              "attempted_at": None, "stale": False}
+_gdt_cache = {
+    "expires_at": 0.0,
+    "value": None,
+    "checked_at": None,
+    "attempted_at": None,
+    "stale": False,
+}
 _gdt_cache_lock = threading.Lock()
 
 
@@ -137,8 +141,8 @@ def load_exchange_rates(path: str | Path) -> dict:
             year = int(annual_rate["year"])
             years.setdefault(year, {"annual": None, "months": []})
             if year < GDT_TOI_CLOSING_RATE_START_YEAR:
-                years.setdefault(year, {"annual": None, "months": []})["annual"] = float(
-                    annual_rate["rate"]
+                years.setdefault(year, {"annual": None, "months": []})["annual"] = (
+                    float(annual_rate["rate"])
                 )
         for update in updates.get("monthly_rates", []):
             year = int(update["year"])
@@ -168,10 +172,16 @@ def load_exchange_rates(path: str | Path) -> dict:
         published = datetime.strptime(source["published_at"], "%Y-%m-%d")
         url = urlparse(source["source_url"])
         rate = float(source["rate"])
-        if (year < GDT_TOI_CLOSING_RATE_START_YEAR or published.year != year
-                or published.month != 12 or not math.isfinite(rate) or rate <= 0
-                or url.scheme != "https"
-                or url.hostname not in {"www.tax.gov.kh", "tax.gov.kh", "www.nbc.gov.kh", "nbc.gov.kh"}):
+        if (
+            year < GDT_TOI_CLOSING_RATE_START_YEAR
+            or published.year != year
+            or published.month != 12
+            or not math.isfinite(rate)
+            or rate <= 0
+            or url.scheme != "https"
+            or url.hostname
+            not in {"www.tax.gov.kh", "tax.gov.kh", "www.nbc.gov.kh", "nbc.gov.kh"}
+        ):
             raise ValueError("Invalid sourced annual closing rate")
         closing_rates[year] = source
         years.setdefault(year, {"annual": None, "months": []})
@@ -181,11 +191,20 @@ def load_exchange_rates(path: str | Path) -> dict:
         year = int(source["year"])
         rate = float(source["rate"])
         url = urlparse(source["source_url"])
-        expected_method = "gdt_year_end" if year >= GDT_TOI_CLOSING_RATE_START_YEAR else "gdt_annual_average"
-        if (not 1900 <= year <= 2200 or not math.isfinite(rate) or rate <= 0
-                or url.scheme != "https" or not url.hostname
-                or source["annual_method"] != expected_method
-                or source.get("verification") != "financial_report"):
+        expected_method = (
+            "gdt_year_end"
+            if year >= GDT_TOI_CLOSING_RATE_START_YEAR
+            else "gdt_annual_average"
+        )
+        if (
+            not 1900 <= year <= 2200
+            or not math.isfinite(rate)
+            or rate <= 0
+            or url.scheme != "https"
+            or not url.hostname
+            or source["annual_method"] != expected_method
+            or source.get("verification") != "financial_report"
+        ):
             raise ValueError("Invalid reported annual TOI rate")
         reported_rates[year] = source
         years.setdefault(year, {"annual": None, "months": []})
@@ -195,20 +214,31 @@ def load_exchange_rates(path: str | Path) -> dict:
         source = closing_rates.get(year) or reported_rates.get(year)
         if source or year >= GDT_TOI_CLOSING_RATE_START_YEAR:
             record["annual"] = float(source["rate"]) if source else None
-        record["annual_source_url"] = source["source_url"] if source else (
-            updates.get("historical_annual_average_source_url")
-            if any(int(row["year"]) == year for row in updates.get("historical_annual_average_rates", []))
-            else None
+        record["annual_source_url"] = (
+            source["source_url"]
+            if source
+            else (
+                updates.get("historical_annual_average_source_url")
+                if any(
+                    int(row["year"]) == year
+                    for row in updates.get("historical_annual_average_rates", [])
+                )
+                else None
+            )
         )
         record["annual_published_at"] = source.get("published_at") if source else None
         record["annual_verification"] = (
-            "official_publication" if year in closing_rates else
-            "financial_report" if source else None
+            "official_publication"
+            if year in closing_rates
+            else "financial_report"
+            if source
+            else None
         )
         record["toi_rate_available"] = source is not None
         record["annual_method"] = (
-            source.get("annual_method", "gdt_year_end") if source else
-            "historical_average"
+            source.get("annual_method", "gdt_year_end")
+            if source
+            else "historical_average"
             if record["annual"] is not None and year < GDT_TOI_CLOSING_RATE_START_YEAR
             else "gdt_year_end"
             if record["annual"] is not None
@@ -283,7 +313,9 @@ def parse_gdt_latest_rate(page_html: str) -> dict | None:
         )
         if not date_match or symbol_index is None:
             continue
-        if not any("national bank of cambodia" in cell.casefold() for cell in normalized):
+        if not any(
+            "national bank of cambodia" in cell.casefold() for cell in normalized
+        ):
             continue
 
         rate = next(
@@ -321,7 +353,11 @@ def fetch_latest_gdt_rate(force: bool = False) -> dict:
         now = time.monotonic()
         cooldown = now < _gdt_cache.get("refresh_after", 0.0)
         if (not force and now < _gdt_cache["expires_at"]) or cooldown:
-            return {**_gdt_cache, "cached": True, "refresh_throttled": force and cooldown}
+            return {
+                **_gdt_cache,
+                "cached": True,
+                "refresh_throttled": force and cooldown,
+            }
 
         try:
             response = requests.get(
