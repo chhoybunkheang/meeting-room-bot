@@ -45,7 +45,7 @@
     <section id="latestOfficialRate" class="latest-official-card" aria-live="polite">
         <div>
             <span>{% if rate_status.stale and latest_official_rate %}Last Known Official Rate{% else %}Latest Official Rate{% endif %}</span>
-            <small>Published by the National Bank of Cambodia via <a href="{{ latest_official_rate.source_url if latest_official_rate else 'https://www.tax.gov.kh/gdtwebsiteweb/en/exchange-rate' }}" target="_blank" rel="noopener noreferrer">GDT</a></small>
+            <small>Official rate from <a href="{{ latest_official_rate.source_url if latest_official_rate else 'https://www.tax.gov.kh/gdtwebsiteweb/en/exchange-rate' }}" target="_blank" rel="noopener noreferrer">GDT</a> (National Bank of Cambodia)</small>
         </div>
         {% if latest_official_rate %}
         <strong>{{ latest_official_rate.rate|rate }} <small>KHR/USD</small></strong>

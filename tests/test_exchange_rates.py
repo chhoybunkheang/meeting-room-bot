@@ -155,6 +155,25 @@ def test_gdt_parser_reads_first_official_usd_rate():
     assert latest["published_at"] == datetime(2026, 9, 2)
 
 
+def test_gdt_parser_uses_table_cells_when_markup_and_date_format_vary():
+    page = """
+        <table>
+            <tr><th>Release Date</th><th>Symbol</th><th>Official Rate</th></tr>
+            <tr>
+                <td><span>Sep</span> 3, 2026</td>
+                <td>USD / KHR</td>
+                <td><strong>4,049</strong></td>
+                <td>National Bank of Cambodia</td>
+            </tr>
+        </table>
+    """
+
+    latest = parse_gdt_latest_rate(page)
+
+    assert latest["rate"] == 4049
+    assert latest["published_at"] == datetime(2026, 9, 3)
+
+
 def test_sourced_closing_rate_overrides_unverified_workbook_annual(tmp_path):
     path = tmp_path / "rates.xlsx"
     build_workbook(path)

@@ -370,6 +370,7 @@ def test_exchange_rate_page_keeps_help_navigation_active(mini_app_module):
     assert 'aria-current="page"' in html
     assert "Exchange Rate" in html
     assert "Latest Official Rate" in html
+    assert "Official rate from" in html
     assert "GDT Annual TOI Exchange Rate" in html
     assert "Year-end official rate · published 2025-12-31" in html
     assert "4,047" in html

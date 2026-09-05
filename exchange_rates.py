@@ -9,6 +9,7 @@ import re
 import threading
 import time
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -227,23 +228,87 @@ def format_rate(value) -> str:
     return f"{int(float(value) + 0.5):,}"
 
 
+class _GDTTableParser(HTMLParser):
+    """Collect table rows while preserving the cells that define each rate."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.rows = []
+        self._row = None
+        self._cell = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "tr":
+            self._row = []
+        elif tag in {"td", "th"}:
+            if self._row is None:
+                self._row = []
+            self._cell = []
+
+    def handle_data(self, data):
+        if self._cell is not None:
+            self._cell.append(data)
+
+    def handle_endtag(self, tag):
+        if tag in {"td", "th"} and self._row is not None and self._cell is not None:
+            self._row.append(" ".join(self._cell).strip())
+            self._cell = None
+        elif tag == "tr" and self._row is not None:
+            if self._row:
+                self.rows.append(self._row)
+            self._row = None
+
+
 def parse_gdt_latest_rate(page_html: str) -> dict | None:
     """Extract the first published USD/KHR row from the GDT page."""
-    text = re.sub(r"<[^>]+>", " ", page_html)
-    text = re.sub(r"\s+", " ", html.unescape(text))
-    match = re.search(
-        r"([A-Z][a-z]+\s+\d{1,2},\s+\d{4})\s+USD/KHR\s+([\d,]+)\s+"
-        r"National Bank of Cambodia",
-        text,
-    )
-    if not match:
-        return None
-    try:
-        published_at = datetime.strptime(match.group(1), "%B %d, %Y")
-        rate = int(match.group(2).replace(",", ""))
-    except ValueError:
-        return None
-    return {"rate": rate, "published_at": published_at, "source_url": GDT_EXCHANGE_RATE_URL}
+    parser = _GDTTableParser()
+    parser.feed(page_html)
+    if parser._row:
+        parser.rows.append(parser._row)
+    date_pattern = re.compile(r"^([A-Za-z]+\s+\d{1,2},\s+\d{4})$")
+
+    for row in parser.rows:
+        normalized = [re.sub(r"\s+", " ", html.unescape(cell)).strip() for cell in row]
+        date_match = next(
+            (date_pattern.match(cell) for cell in normalized),
+            None,
+        )
+        symbol_index = next(
+            (
+                index
+                for index, cell in enumerate(normalized)
+                if re.sub(r"\s+", "", cell).upper() == "USD/KHR"
+            ),
+            None,
+        )
+        if not date_match or symbol_index is None:
+            continue
+        if not any("national bank of cambodia" in cell.casefold() for cell in normalized):
+            continue
+
+        rate = next(
+            (
+                number
+                for cell in normalized[symbol_index + 1 :]
+                if (number := _number(cell)) is not None and number > 0
+            ),
+            None,
+        )
+        if rate is None:
+            continue
+        try:
+            published_at = datetime.strptime(date_match.group(1), "%B %d, %Y")
+        except ValueError:
+            try:
+                published_at = datetime.strptime(date_match.group(1), "%b %d, %Y")
+            except ValueError:
+                continue
+        return {
+            "rate": int(rate),
+            "published_at": published_at,
+            "source_url": GDT_EXCHANGE_RATE_URL,
+        }
+    return None
 
 
 def fetch_latest_gdt_rate(force: bool = False) -> dict:
