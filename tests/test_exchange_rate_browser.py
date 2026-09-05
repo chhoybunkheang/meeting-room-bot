@@ -180,6 +180,9 @@ def test_mobile_table_keeps_month_visible_and_shows_scroll_hint(mini_app_module)
             )
             == "sticky"
         )
+        assert page.evaluate(
+            "getComputedStyle(document.querySelector('#monthlyRates th')).zIndex"
+        ) == "1"
         initial_x = month_cell.bounding_box()["x"]
         scroll.evaluate("element => element.scrollLeft = 180")
         page.wait_for_timeout(50)
