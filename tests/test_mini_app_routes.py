@@ -373,6 +373,7 @@ def test_exchange_rate_page_keeps_help_navigation_active(mini_app_module):
             "rate": 4047,
             "published_at": datetime(2026, 9, 2),
         },
+        bot_username="test_bot",
     )
 
     assert 'href="/tools/exchange-rate"' not in html
@@ -381,12 +382,20 @@ def test_exchange_rate_page_keeps_help_navigation_active(mini_app_module):
     assert 'class="active" href="/?panel=help#helpPanel"' in html
     assert 'aria-current="page"' in html
     assert "Exchange Rate" in html
-    assert "Latest Official Rate" in html
+    normalized_html = " ".join(html.split())
+    assert "Latest Official Rate" in normalized_html
     assert "Official rate from" in html
-    assert html.index('class="currency-flags"') < html.index('id="fiscalYear"')
-    assert html.index("Release date") < html.index('id="latestOfficialRate"') + 500
+    assert "telegram-mark" in html
+    assert "@test_bot" in html
+    assert normalized_html.index("@test_bot") > normalized_html.index("Monthly data does not determine annual TOI rates.")
+    assert normalized_html.index('class="currency-flags"') > normalized_html.index(
+        'id="fiscalYear"'
+    )
+    assert normalized_html.index("Release date") < normalized_html.index(
+        'id="latestOfficialRate"'
+    ) + 500
     assert "GDT Annual TOI Exchange Rate" in html
-    assert "Year-end official rate · published 2025-12-31" in html
+    assert "Year-end official rate · published 2025-12-31" in normalized_html
     assert "4,047" in html
     assert "Export" not in html
 
@@ -395,15 +404,19 @@ def test_exchange_rate_summary_is_sticky_and_mobile_compact():
     stylesheet = (
         Path(__file__).resolve().parents[1] / "static" / "css" / "styles.css"
     ).read_text(encoding="utf-8")
-    assert ".exchange-summary-grid { position: sticky;" in stylesheet
-    assert "grid-template-columns: minmax(118px,.8fr) minmax(0,1.2fr)" in stylesheet
+    normalized_stylesheet = " ".join(stylesheet.split())
+    assert ".exchange-summary-grid { position: sticky;" in normalized_stylesheet
     assert (
-        ".exchange-table-card th:first-child,.exchange-table-card td:first-child { position: sticky;"
-        in stylesheet
+        "grid-template-columns: minmax(118px, .8fr) minmax(0, 1.2fr)"
+        in normalized_stylesheet
     )
-    assert "width: 82px; min-width: 82px" in stylesheet
-    assert "width: 72px; min-width: 72px" in stylesheet
-    assert ".exchange-table-scroll-hint { display: block;" in stylesheet
+    assert (
+        ".exchange-table-card th:first-child, .exchange-table-card td:first-child { position: sticky;"
+        in normalized_stylesheet
+    )
+    assert "width: 82px; min-width: 82px" in normalized_stylesheet
+    assert "width: 72px; min-width: 72px" in normalized_stylesheet
+    assert ".exchange-table-scroll-hint { display: block;" in normalized_stylesheet
 
 
 @pytest.mark.parametrize(

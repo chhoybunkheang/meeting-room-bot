@@ -1388,18 +1388,6 @@ input[readonly] {
     padding: 16px;
 }
 
-.fiscal-year-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-
-.fiscal-year-heading label {
-    margin-bottom: 0;
-}
-
 .exchange-control-card label {
     display: block;
     margin-bottom: 8px;
@@ -1482,9 +1470,8 @@ input[readonly] {
 .currency-flags {
     display: flex;
     align-items: center;
-    gap: 5px;
-    font-size: 24px;
-    line-height: 1;
+    gap: 9px;
+    font-size: 36px;
 }
 
 .currency-flags b {
@@ -1911,13 +1898,9 @@ input[readonly] {
         padding: 14px;
     }
 
-    .fiscal-year-heading {
-        align-items: flex-start;
-    }
-
     .currency-flags {
-        gap: 3px;
-        font-size: 20px;
+        gap: 5px;
+        font-size: 27px;
     }
 
     .currency-flags b {

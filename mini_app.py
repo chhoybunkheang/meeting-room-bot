@@ -595,6 +595,7 @@ async def exchange_rate(request: Request):
             "last_updated": exchange_data["last_updated"],
             "latest_official_rate": rate_status["value"],
             "rate_status": rate_status,
+            "bot_username": await get_bot_username(),
         },
         headers={"Cache-Control": "no-store"},
     )

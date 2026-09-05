@@ -103,8 +103,8 @@ def test_year_switch_renders_the_selected_monthly_data(mini_app_module):
         page.set_content(html)
         page.select_option("#fiscalYear", "2025")
 
-        assert page.locator(".exchange-control-card .currency-flags").is_visible()
-        assert page.locator(".currency-card .currency-flags").count() == 0
+        assert page.locator(".currency-card .currency-flags").is_visible()
+        assert page.locator(".exchange-control-card .currency-flags").count() == 0
         assert page.locator("#annualRate").inner_text() == "4,013"
         monthly_text = " ".join(page.locator("#monthlyRates").inner_text().split())
         assert monthly_text == "Dec 4,011 4,015 4,013 4,013"

@@ -30,9 +30,7 @@
 
         <section class="exchange-summary-grid" aria-label="Exchange-rate summary">
             <article class="exchange-control-card">
-                <div class="fiscal-year-heading"><label for="fiscalYear">Fiscal Year</label>
-                    <div class="currency-flags" aria-hidden="true"><span>🇺🇸</span><b>⇄</b><span>🇰🇭</span></div>
-                </div>
+                <label for="fiscalYear">Fiscal Year</label>
                 <select id="fiscalYear">
                     {% for year in exchange_years %}<option value="{{ year }}" {% if year==selected_year %} selected{%
                         endif %}>{{ year }}</option>{% endfor %}
@@ -61,6 +59,7 @@
         </section>
 
         <section class="currency-card">
+            <div class="currency-flags" aria-hidden="true"><span>🇺🇸</span><b>⇄</b><span>🇰🇭</span></div>
             <div>
                 <h2>USD / KHR</h2>
                 <p>US Dollar to Cambodian Riel</p>
@@ -125,12 +124,7 @@
         </section>
 
         <aside class="exchange-note"><span aria-hidden="true">i</span>
-            <p><strong>Note:</strong> Parallel Market Rate is the average rate from major money changers in Cambodia.
-                Official Exchange Rate is from the National Bank of Cambodia. Annual TOI rates use the year-end method
-                from 2020 for December year ends. The 2014-2019 annual averages and 2020-2021 closing rates are
-                corroborated by financial reports; their original GDT/NBC notices have not been independently verified.
-                Rates from 2022 have direct official sources. Earlier historical averages remain reference data, not
-                verified TOI filing rates. Monthly observations are not used to infer annual TOI rates.</p>
+            <p><strong>Note:</strong> Parallel Market Rate is averaged from major Cambodian money changers; Official Exchange Rate is from the National Bank of Cambodia. Annual TOI rates use the year-end method from 2020 for December year ends. The 2014-2019 annual averages and 2020-2021 closing rates are supported by financial reports, but their original GDT/NBC notices are unverified. Rates from 2022 have direct official sources; earlier historical averages are reference data, not verified TOI filing rates. Monthly data does not determine annual TOI rates.</p>
         </aside>
 
         {% set active_tab = 'help' %}
