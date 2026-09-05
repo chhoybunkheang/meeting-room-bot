@@ -2,6 +2,7 @@ import importlib
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import dotenv
 import pytest
@@ -134,4 +135,25 @@ def test_mobile_sticky_layers_do_not_cover_monthly_table(mini_app_module):
         table_top = table["y"]
         assert summary_top >= header_bottom - 1
         assert table_top >= summary_bottom - 1
+        browser.close()
+
+
+def test_mobile_table_keeps_month_visible_and_shows_scroll_hint(mini_app_module):
+    template = mini_app_module.templates.env.get_template("exchange_rate.html")
+    html = render_page(template)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page(viewport={"width": 390, "height": 844})
+        page.set_content(html)
+        page.add_style_tag(path=str(Path(__file__).resolve().parents[1] / "static" / "css" / "styles.css"))
+        scroll = page.locator(".exchange-table-scroll")
+        month_cell = page.locator("#monthlyRates th").first
+
+        assert page.locator(".exchange-table-scroll-hint").is_visible()
+        assert page.evaluate("getComputedStyle(document.querySelector('#monthlyRates th')).position") == "sticky"
+        initial_x = month_cell.bounding_box()["x"]
+        scroll.evaluate("element => element.scrollLeft = 180")
+        page.wait_for_timeout(50)
+        assert abs(month_cell.bounding_box()["x"] - initial_x) <= 1
         browser.close()

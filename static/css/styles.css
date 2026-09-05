@@ -1077,11 +1077,14 @@ input[readonly] {
 .latest-official-card > p { grid-column: 2 / -1; margin: 0; color: var(--muted); font-size: 13px; }
 .latest-official-card > .exchange-fetch-status { grid-column: 1 / -1; line-height: 1.5; }
 .exchange-table-card { overflow: hidden; }
+.exchange-table-scroll-hint { display: none; }
 .exchange-table-scroll { overflow-x: auto; }
-.exchange-table-card table { width: 100%; min-width: 700px; border-collapse: collapse; }
+.exchange-table-card table { width: 100%; min-width: 700px; border-collapse: separate; border-spacing: 0; }
 .exchange-table-card thead { background: linear-gradient(120deg,#0e3e93,#0750bd); color: #fff; }
 .exchange-table-card th,.exchange-table-card td { padding: 16px 13px; border-bottom: 1px solid #e5ebf4; text-align: center; }
+.exchange-table-card th:first-child,.exchange-table-card td:first-child { position: sticky; left: 0; min-width: 106px; background: #fff; box-shadow: 7px 0 10px -10px rgba(31,62,125,.5); }
 .exchange-table-card thead th { height: 90px; font-size: 15px; }
+.exchange-table-card thead th:first-child { z-index: 2; background: #0e3e93; }
 .exchange-table-card thead small { display: block; margin-top: 5px; color: #d8e5ff; font-size: 11px; font-weight: 500; }
 .exchange-table-card tbody th { text-align: left; }
 .exchange-table-card tbody tr:last-child th,.exchange-table-card tbody tr:last-child td { border-bottom: 0; }
@@ -1140,6 +1143,7 @@ input[readonly] {
     .latest-official-card { grid-template-columns: 1fr auto; gap: 10px; padding: 14px; }
     .latest-official-date { grid-column: 1 / -1; padding-top: 9px; border-top: 1px solid #d7eee4; text-align: left; }
     .latest-official-card > p { grid-column: 1 / -1; }
+    .exchange-table-scroll-hint { display: block; margin: 0; padding: 9px 13px; border-bottom: 1px solid #dfe7f4; background: #f4f8ff; color: var(--blue-dark); font-size: 12px; font-weight: 700; text-align: center; }
     .exchange-table-card th,.exchange-table-card td { padding: 14px 10px; }
 }
 

@@ -381,6 +381,8 @@ def test_exchange_rate_summary_is_sticky_and_mobile_compact():
     stylesheet = (Path(__file__).resolve().parents[1] / "static" / "css" / "styles.css").read_text(encoding="utf-8")
     assert ".exchange-summary-grid { position: sticky;" in stylesheet
     assert "grid-template-columns: minmax(118px,.8fr) minmax(0,1.2fr)" in stylesheet
+    assert ".exchange-table-card th:first-child,.exchange-table-card td:first-child { position: sticky;" in stylesheet
+    assert ".exchange-table-scroll-hint { display: block;" in stylesheet
 
 
 @pytest.mark.parametrize("query, selected, force", [
