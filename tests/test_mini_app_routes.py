@@ -382,6 +382,8 @@ def test_exchange_rate_summary_is_sticky_and_mobile_compact():
     assert ".exchange-summary-grid { position: sticky;" in stylesheet
     assert "grid-template-columns: minmax(118px,.8fr) minmax(0,1.2fr)" in stylesheet
     assert ".exchange-table-card th:first-child,.exchange-table-card td:first-child { position: sticky;" in stylesheet
+    assert "width: 82px; min-width: 82px" in stylesheet
+    assert "width: 72px; min-width: 72px" in stylesheet
     assert ".exchange-table-scroll-hint { display: block;" in stylesheet
 
 
