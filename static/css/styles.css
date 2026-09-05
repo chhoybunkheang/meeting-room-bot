@@ -1053,6 +1053,10 @@ input[readonly] {
 .exchange-average-card strong { color: #139a5b; font-size: clamp(34px,7vw,48px); line-height: 1; }
 .exchange-average-card small { font-size: 18px; }
 .exchange-average-card > small { margin-top: 7px; color: var(--muted); font-size: 12px; }
+.exchange-average-card > a { margin-top: 6px; color: var(--blue-dark); font-size: 12px; }
+.exchange-average-card > a[hidden] { display: none; }
+.exchange-header button:disabled { opacity: .5; cursor: wait; }
+#refreshStatus { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
 .currency-card { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 18px; margin-bottom: 16px; padding: 17px 20px; }
 .currency-flags { display: flex; align-items: center; gap: 9px; font-size: 36px; }
 .currency-flags b { color: var(--blue); font-size: 22px; }
@@ -1071,6 +1075,7 @@ input[readonly] {
 .latest-official-date { display: grid; gap: 4px; text-align: right; }
 .latest-official-date time { color: var(--blue-dark); font-size: 14px; font-weight: 750; }
 .latest-official-card > p { grid-column: 2 / -1; margin: 0; color: var(--muted); font-size: 13px; }
+.latest-official-card > .exchange-fetch-status { grid-column: 1 / -1; line-height: 1.5; }
 .exchange-table-card { overflow: hidden; }
 .exchange-table-scroll { overflow-x: auto; }
 .exchange-table-card table { width: 100%; min-width: 700px; border-collapse: collapse; }

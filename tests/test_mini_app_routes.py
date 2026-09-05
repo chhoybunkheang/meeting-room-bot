@@ -339,6 +339,8 @@ def test_exchange_rate_page_keeps_help_navigation_active(mini_app_module):
                 "annual": 4050,
                 "toi_rate_available": True,
                 "annual_method": "gdt_year_end",
+                "annual_source_url": "https://www.tax.gov.kh/en/exchange-rate?for_year=2025&for_month=12",
+                "annual_published_at": "2025-12-31",
                 "months": [
                     {
                         "number": 1,
@@ -352,6 +354,8 @@ def test_exchange_rate_page_keeps_help_navigation_active(mini_app_module):
             }
         },
         selected_year=2025,
+        current_year=2026,
+        rate_status={"stale": False, "cached": False},
         last_updated=None,
         latest_official_rate={
             "rate": 4047,
@@ -367,7 +371,7 @@ def test_exchange_rate_page_keeps_help_navigation_active(mini_app_module):
     assert "Exchange Rate" in html
     assert "Latest Official Rate" in html
     assert "GDT Annual TOI Exchange Rate" in html
-    assert "GDT method · year-end official rate" in html
+    assert "Year-end official rate · published 2025-12-31" in html
     assert "4,047" in html
     assert "Export" not in html
 
@@ -376,3 +380,51 @@ def test_exchange_rate_summary_is_sticky_and_mobile_compact():
     stylesheet = (Path(__file__).resolve().parents[1] / "static" / "css" / "styles.css").read_text(encoding="utf-8")
     assert ".exchange-summary-grid { position: sticky;" in stylesheet
     assert "grid-template-columns: minmax(118px,.8fr) minmax(0,1.2fr)" in stylesheet
+
+
+@pytest.mark.parametrize("query, selected, force", [
+    (b"year=2024&refresh=1", 2024, True),
+    (b"year=invalid", 2026, False),
+    (b"year=1900", 2026, False),
+])
+def test_exchange_route_selection_refresh_and_coverage(mini_app_module, monkeypatch, query, selected, force):
+    calls = []
+    def fetch(force=False):
+        calls.append(force)
+        return {"value": None, "checked_at": None, "attempted_at": None,
+                "stale": True, "cached": False, "refresh_throttled": False}
+    monkeypatch.setattr(mini_app_module, "fetch_latest_gdt_rate", fetch)
+    monkeypatch.setattr(mini_app_module, "EXCHANGE_RATE_WORKBOOK",
+                        Path(__file__).resolve().parents[1] / "data" / "Exchange Rate.xlsx")
+    request = request_for("/tools/exchange-rate")
+    request.scope["query_string"] = query
+    response = asyncio.run(mini_app_module.exchange_rate(request))
+    html = response.body.decode()
+    assert calls == [force]
+    assert response.context["selected_year"] == selected
+    assert response.headers["cache-control"] == "no-store"
+    assert 'value="%s" selected' % selected in html
+    assert "Update failed." in html
+    assert "Workbook updated" not in html
+    if selected == 2026:
+        assert "Through Mar 2026 · 3 of 12 months" in html
+    else:
+        assert "published 2024-12-31" in html
+
+
+def test_exchange_route_exposes_saved_rate_and_successful_check_time(mini_app_module, monkeypatch):
+    from datetime import timezone
+    checked = datetime(2026, 9, 4, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(mini_app_module, "fetch_latest_gdt_rate", lambda force=False: {
+        "value": {"rate": 4048, "published_at": datetime(2026, 9, 4),
+                  "source_url": "https://www.tax.gov.kh/en/exchange-rate"},
+        "checked_at": checked, "attempted_at": checked + timedelta(hours=7),
+        "stale": True, "cached": True, "refresh_throttled": False,
+    })
+    response = asyncio.run(mini_app_module.exchange_rate(request_for("/tools/exchange-rate")))
+    html = response.body.decode()
+    assert "Last Known Official Rate" in html
+    assert "4,048" in html
+    assert "Showing the last saved rate" in html
+    assert "04 Sep 2026, 17:00:00 GMT+7" in html
+    assert "05 Sep 2026, 00:00:00 GMT+7" in html

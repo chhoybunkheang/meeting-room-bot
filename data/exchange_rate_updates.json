@@ -2,6 +2,12 @@
   "source": "National Bank of Cambodia Economic and Monetary Statistics Bulletin No. 385, March 2026, Table 12",
   "source_url": "https://www.nbc.gov.kh/download_files/publication/eco_mon_sta_eng/Review%20385%20Mar-2026_En.pdf",
   "published_through": "2026-03",
+  "annual_closing_rates": [
+    {"year": 2022, "rate": 4117, "published_at": "2022-12-30", "source_url": "https://www.tax.gov.kh/en/exchange-rate?for_year=2022&for_month=12", "verified_on": "2026-09-05"},
+    {"year": 2023, "rate": 4085, "published_at": "2023-12-29", "source_url": "https://www.tax.gov.kh/en/exchange-rate?for_year=2023&for_month=12", "verified_on": "2026-09-05"},
+    {"year": 2024, "rate": 4025, "published_at": "2024-12-31", "source_url": "https://www.tax.gov.kh/en/exchange-rate?for_year=2024&for_month=12", "verified_on": "2026-09-05"},
+    {"year": 2025, "rate": 4013, "published_at": "2025-12-31", "source_url": "https://www.tax.gov.kh/en/exchange-rate?for_year=2025&for_month=12", "verified_on": "2026-09-05"}
+  ],
   "historical_annual_average_source": "World Bank indicator PA.NUS.FCRF for Cambodia, based on IMF International Financial Statistics; pre-2022 annual-average method",
   "historical_annual_average_source_url": "https://api.worldbank.org/v2/country/KHM/indicator/PA.NUS.FCRF?format=json&per_page=100",
   "historical_annual_average_rates": [
