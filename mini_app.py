@@ -570,17 +570,33 @@ async def exchange_rate(request: Request):
     if not exchange_data["years"]:
         raise HTTPException(status_code=503, detail="Exchange-rate data unavailable")
 
-    latest_official_rate = await run_in_threadpool(fetch_latest_gdt_rate)
+    rate_status = await run_in_threadpool(
+        fetch_latest_gdt_rate, force=request.query_params.get("refresh") == "1"
+    )
+    for field in ("checked_at", "attempted_at"):
+        value = rate_status.get(field)
+        rate_status[field + "_label"] = (
+            value.astimezone(ZoneInfo("Asia/Phnom_Penh")).strftime("%d %b %Y, %H:%M:%S GMT+7")
+            if value else None
+        )
+    requested_year = request.query_params.get("year", "")
+    selected_year = next(
+        (year for year in exchange_data["years"] if str(year) == requested_year),
+        next(iter(exchange_data["years"])),
+    )
 
     return templates.TemplateResponse(
         request=request,
         name="exchange_rate.html",
         context={
             "exchange_years": exchange_data["years"],
-            "selected_year": next(iter(exchange_data["years"])),
+            "selected_year": selected_year,
+            "current_year": datetime.now(ZoneInfo("Asia/Phnom_Penh")).year,
             "last_updated": exchange_data["last_updated"],
-            "latest_official_rate": latest_official_rate,
+            "latest_official_rate": rate_status["value"],
+            "rate_status": rate_status,
         },
+        headers={"Cache-Control": "no-store"},
     )
 
 

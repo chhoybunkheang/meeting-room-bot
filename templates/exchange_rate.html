@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f4f7ff">
     <title>Exchange Rate · B03 Meeting Room</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=20260904-2">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260905-1">
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 </head>
 <body class="user-home exchange-rate-page">
 <main class="app-shell">
     <header class="exchange-header">
-        <a href="/?panel=help#helpPanel" aria-label="Back to Help">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        <a href="/?panel=help#helpPanel" aria-label="Close exchange rates and return to Help" title="Return to Help">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
         </a>
         <h1>Exchange Rate</h1>
         <button id="refreshRates" type="button" aria-label="Refresh exchange rates">
@@ -28,21 +28,23 @@
             </select>
         </article>
         <article class="exchange-average-card">
-            <span id="annualRateLabel">{% if exchange_years[selected_year].annual_method == 'historical_average' %}Historical Annual Average Exchange Rate ({{ selected_year }}){% else %}GDT Annual TOI Exchange Rate ({{ selected_year }}){% endif %}</span>
-            <strong><span id="annualRate">{{ exchange_years[selected_year].annual|rate }}</span> <small id="annualRateUnit">{% if exchange_years[selected_year].toi_rate_available %}KHR/USD{% endif %}</small></strong>
-            <small id="annualRateStatus">{% if exchange_years[selected_year].annual_method == 'historical_average' %}Pre-2022 method · annual average{% elif exchange_years[selected_year].toi_rate_available %}GDT method · year-end official rate{% else %}Not available until fiscal year end{% endif %}</small>
+            <span id="annualRateLabel">{% if exchange_years[selected_year].annual_method == 'historical_average' %}Historical Annual Average Exchange Rate ({{ selected_year }}){% elif exchange_years[selected_year].annual_verification == 'financial_report' %}Annual TOI Exchange Rate ({{ selected_year }}){% else %}GDT Annual TOI Exchange Rate ({{ selected_year }}){% endif %}</span>
+            <strong><span id="annualRate">{{ exchange_years[selected_year].annual|rate }}</span> <small id="annualRateUnit">{% if exchange_years[selected_year].annual is not none %}KHR/USD{% endif %}</small></strong>
+            <small id="annualRateStatus">{% if exchange_years[selected_year].annual_method == 'historical_average' %}Historical average · reference only{% elif exchange_years[selected_year].annual_verification == 'financial_report' %}{% if exchange_years[selected_year].annual_method == 'gdt_annual_average' %}Annual average{% else %}Year-end rate{% endif %} - Corroborated by financial report; original notice not verified{% elif exchange_years[selected_year].toi_rate_available %}Year-end official rate · published {{ exchange_years[selected_year].annual_published_at }}{% elif selected_year >= current_year %}Not available until fiscal year end{% else %}Year-end official source not yet verified{% endif %}</small>
+            {% set annual_source = exchange_years[selected_year].annual_source_url %}
+            <a id="annualRateSource"{% if annual_source %} href="{{ annual_source }}"{% else %} hidden{% endif %} target="_blank" rel="noopener noreferrer">View annual rate source</a>
         </article>
     </section>
 
     <section class="currency-card">
         <div class="currency-flags" aria-hidden="true"><span>🇺🇸</span><b>⇄</b><span>🇰🇭</span></div>
         <div><h2>USD / KHR</h2><p>US Dollar to Cambodian Riel</p></div>
-        {% if last_updated %}<div class="exchange-updated"><span>Workbook updated</span><strong>{{ last_updated.strftime('%d %b %Y, %I:%M %p') }}</strong></div>{% endif %}
+        <div class="exchange-updated" aria-live="polite"><span>Monthly data coverage</span><strong id="monthlyCoverage">{% set months = exchange_years[selected_year].months %}{% if months %}Through {{ months[-1].month }} {{ selected_year }} · {{ months|length }} of 12 months{% else %}No monthly records for {{ selected_year }}{% endif %}</strong></div>
     </section>
 
-    <section class="latest-official-card" aria-live="polite">
+    <section id="latestOfficialRate" class="latest-official-card" aria-live="polite">
         <div>
-            <span>Latest Official Rate</span>
+            <span>{% if rate_status.stale and latest_official_rate %}Last Known Official Rate{% else %}Latest Official Rate{% endif %}</span>
             <small>Published by the National Bank of Cambodia via <a href="{{ latest_official_rate.source_url if latest_official_rate else 'https://www.tax.gov.kh/gdtwebsiteweb/en/exchange-rate' }}" target="_blank" rel="noopener noreferrer">GDT</a></small>
         </div>
         {% if latest_official_rate %}
@@ -51,7 +53,15 @@
         {% else %}
         <p>Latest GDT rate is temporarily unavailable. Monthly workbook data is shown below.</p>
         {% endif %}
+        <p class="exchange-fetch-status">
+            {% if rate_status.stale %}Update failed.{% if latest_official_rate %} Showing the last saved rate.{% endif %}
+            {% elif rate_status.cached %}Showing a cached rate.{% else %}Official rate checked successfully.{% endif %}
+            {% if rate_status.checked_at_label %} Last successful check: {{ rate_status.checked_at_label }}.{% endif %}
+            {% if rate_status.stale and rate_status.attempted_at_label %} Last attempt: {{ rate_status.attempted_at_label }}.{% endif %}
+            {% if rate_status.refresh_throttled %} Please wait 30 seconds between checks.{% endif %}
+        </p>
     </section>
+    <p id="refreshStatus" role="status" aria-live="polite">Refresh checks the official rate. Monthly records are updated separately.</p>
 
     <section id="monthlyTableCard" class="exchange-table-card">
         <div class="exchange-table-scroll">
@@ -65,10 +75,10 @@
     </section>
     <section id="noMonthlyRates" class="exchange-empty" hidden>
         <strong>Monthly exchange-rate data is not available for this fiscal year.</strong>
-        <span>The annual exchange rate is still shown above.</span>
+        <span>See the annual rate and its availability above.</span>
     </section>
 
-    <aside class="exchange-note"><span aria-hidden="true">i</span><p><strong>Note:</strong> Parallel Market Rate is the average rate from major money changers in Cambodia. Official Exchange Rate is from the National Bank of Cambodia. For TOI, 2022 onward uses the year-end official-rate method; earlier years show the historical annual-average method and should be checked against the guidance for that filing year.</p></aside>
+    <aside class="exchange-note"><span aria-hidden="true">i</span><p><strong>Note:</strong> Parallel Market Rate is the average rate from major money changers in Cambodia. Official Exchange Rate is from the National Bank of Cambodia. Annual TOI rates use the year-end method from 2020 for December year ends. The 2014-2019 annual averages and 2020-2021 closing rates are corroborated by financial reports; their original GDT/NBC notices have not been independently verified. Rates from 2022 have direct official sources. Earlier historical averages remain reference data, not verified TOI filing rates. Monthly observations are not used to infer annual TOI rates.</p></aside>
 
     {% set active_tab = 'help' %}
     {% set tools_local = false %}
@@ -80,20 +90,34 @@
 </main>
 <script>
 const exchangeRates = {{ exchange_years|tojson }};
+const currentYear = {{ current_year|tojson }};
 const yearSelect = document.getElementById("fiscalYear");
 const rateFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 function renderYear(year) {
     const record = exchangeRates[year];
     document.getElementById("annualRateLabel").textContent = record.annual_method === "historical_average"
         ? `Historical Annual Average Exchange Rate (${year})`
+        : record.annual_verification === "financial_report"
+        ? `Annual TOI Exchange Rate (${year})`
         : `GDT Annual TOI Exchange Rate (${year})`;
     document.getElementById("annualRate").textContent = record.annual == null ? "—" : rateFormatter.format(record.annual);
-    document.getElementById("annualRateUnit").textContent = record.toi_rate_available ? "KHR/USD" : "";
+    document.getElementById("annualRateUnit").textContent = record.annual != null ? "KHR/USD" : "";
     document.getElementById("annualRateStatus").textContent = record.annual_method === "historical_average"
-        ? "Pre-2022 method · annual average"
+        ? "Historical average · reference only"
+        : record.annual_verification === "financial_report"
+        ? `${record.annual_method === "gdt_annual_average" ? "Annual average" : "Year-end rate"} - Corroborated by financial report; original notice not verified`
         : record.toi_rate_available
-        ? "GDT method · year-end official rate"
-        : "Not available until fiscal year end";
+        ? `Year-end official rate · published ${record.annual_published_at}`
+        : Number(year) >= currentYear ? "Not available until fiscal year end"
+        : "Year-end official source not yet verified";
+    const source = document.getElementById("annualRateSource");
+    source.hidden = !record.annual_source_url;
+    if (record.annual_source_url) source.href = record.annual_source_url;
+    else source.removeAttribute("href");
+    const lastMonth = record.months[record.months.length - 1];
+    document.getElementById("monthlyCoverage").textContent = lastMonth
+        ? `Through ${lastMonth.month} ${year} · ${record.months.length} of 12 months`
+        : `No monthly records for ${year}`;
     const tableCard = document.getElementById("monthlyTableCard");
     const emptyState = document.getElementById("noMonthlyRates");
     const body = document.getElementById("monthlyRates");
@@ -111,11 +135,43 @@ function renderYear(year) {
     tableCard.hidden = record.months.length === 0;
     emptyState.hidden = record.months.length !== 0;
 }
-yearSelect.addEventListener("change", function () { renderYear(this.value); });
-document.getElementById("refreshRates").addEventListener("click", function () { window.location.reload(); });
+function rememberYear() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("year", yearSelect.value);
+    url.searchParams.delete("refresh");
+    window.history.replaceState(null, "", url);
+}
+yearSelect.addEventListener("change", function () { renderYear(this.value); rememberYear(); });
+document.getElementById("refreshRates").addEventListener("click", async function () {
+    const status = document.getElementById("refreshStatus");
+    this.disabled = true;
+    this.setAttribute("aria-busy", "true");
+    status.textContent = "Checking the official rate…";
+    const url = new URL(window.location.href);
+    url.searchParams.set("refresh", "1");
+    url.searchParams.set("year", yearSelect.value);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 20000);
+    try {
+        const response = await fetch(url, { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("Rate request failed");
+        const page = new DOMParser().parseFromString(await response.text(), "text/html");
+        const card = page.getElementById("latestOfficialRate");
+        if (!card) throw new Error("Missing official rate");
+        document.getElementById("latestOfficialRate").replaceWith(card);
+        status.textContent = "Check finished. See the official-rate status above. Monthly records are updated separately.";
+    } catch (error) {
+        status.textContent = "Could not refresh. Displayed data has been kept; please try again.";
+    } finally {
+        window.clearTimeout(timeout);
+        this.disabled = false;
+        this.removeAttribute("aria-busy");
+    }
+});
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); document.getElementById("exchangeMyBookingsInitData").value = tg.initData || ""; }
 renderYear(yearSelect.value);
+rememberYear();
 </script>
 </body>
 </html>
