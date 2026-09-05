@@ -41,6 +41,7 @@ def test_parser_supports_monthly_and_annual_only_years(tmp_path):
         "annual_method": "historical_average",
         "annual_source_url": None,
         "annual_published_at": None,
+        "annual_verification": None,
     }
 
 
@@ -113,7 +114,7 @@ def test_parser_merges_verified_monthly_updates_without_duplicates(tmp_path):
     assert result["years"][2026]["toi_rate_available"] is False
 
 
-def test_parser_uses_sourced_pre_2022_annual_average(tmp_path):
+def test_parser_does_not_use_historical_average_for_2021_toi(tmp_path):
     path = tmp_path / "rates.xlsx"
     build_workbook(path)
     path.with_name("exchange_rate_updates.json").write_text(
@@ -129,8 +130,8 @@ def test_parser_uses_sourced_pre_2022_annual_average(tmp_path):
 
     result = load_exchange_rates(path)
 
-    assert result["years"][2021]["annual"] == 4098.72279505888
-    assert result["years"][2021]["annual_method"] == "historical_average"
+    assert result["years"][2021]["annual"] is None
+    assert result["years"][2021]["annual_method"] == "unavailable"
 
 
 def test_rate_formatting_uses_whole_numbers_and_thousands_separators():
@@ -259,4 +260,37 @@ def test_bundled_rates_have_separate_year_end_sources():
         assert record["annual_published_at"].startswith(f"{year}-12-")
         assert f"for_year={year}" in record["annual_source_url"]
     assert result["years"][2026]["annual"] is None
-    assert result["years"][2021]["toi_rate_available"] is False
+    assert result["years"][2013]["toi_rate_available"] is False
+
+
+@pytest.mark.parametrize("year, rate, method", [
+    (2014, 4038, "gdt_annual_average"), (2015, 4060, "gdt_annual_average"),
+    (2016, 4037, "gdt_annual_average"), (2017, 4045, "gdt_annual_average"),
+    (2018, 4045, "gdt_annual_average"), (2019, 4052, "gdt_annual_average"),
+    (2020, 4045, "gdt_year_end"), (2021, 4074, "gdt_year_end"),
+])
+def test_bundled_reported_toi_rates_replace_historical_averages(year, rate, method):
+    from pathlib import Path
+    result = load_exchange_rates(Path(__file__).resolve().parents[1] / "data" / "Exchange Rate.xlsx")
+    record = result["years"][year]
+    assert record["annual"] == rate
+    assert record["annual_method"] == method
+    assert record["annual_verification"] == "financial_report"
+    assert record["annual_published_at"] is None
+    assert record["annual_source_url"].endswith(".pdf")
+    assert record["toi_rate_available"] is True
+
+
+def test_direct_official_source_takes_precedence_over_report(tmp_path):
+    path = tmp_path / "rates.xlsx"
+    build_workbook(path)
+    path.with_name("exchange_rate_updates.json").write_text(json.dumps({
+        "annual_closing_rates": [{"year": 2020, "rate": 4045,
+            "published_at": "2020-12-31", "source_url": "https://www.tax.gov.kh/en/exchange-rate"}],
+        "reported_annual_toi_rates": [{"year": 2020, "rate": 4000,
+            "annual_method": "gdt_year_end", "verification": "financial_report",
+            "source_url": "https://example.com/report.pdf"}],
+    }), encoding="utf-8")
+    record = load_exchange_rates(path)["years"][2020]
+    assert record["annual"] == 4045
+    assert record["annual_verification"] == "official_publication"

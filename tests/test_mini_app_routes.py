@@ -428,3 +428,29 @@ def test_exchange_route_exposes_saved_rate_and_successful_check_time(mini_app_mo
     assert "Showing the last saved rate" in html
     assert "04 Sep 2026, 17:00:00 GMT+7" in html
     assert "05 Sep 2026, 00:00:00 GMT+7" in html
+
+
+@pytest.mark.parametrize("year, rate, method", [
+    (2014, "4,038", "Annual average"), (2015, "4,060", "Annual average"),
+    (2016, "4,037", "Annual average"), (2017, "4,045", "Annual average"),
+    (2018, "4,045", "Annual average"), (2019, "4,052", "Annual average"),
+    (2020, "4,045", "Year-end rate"), (2021, "4,074", "Year-end rate"),
+])
+def test_reported_annual_rates_show_evidence_without_official_publication_claim(
+    mini_app_module, monkeypatch, year, rate, method
+):
+    monkeypatch.setattr(mini_app_module, "fetch_latest_gdt_rate", lambda force=False: {
+        "value": None, "checked_at": None, "attempted_at": None,
+        "stale": True, "cached": False, "refresh_throttled": False,
+    })
+    monkeypatch.setattr(mini_app_module, "EXCHANGE_RATE_WORKBOOK",
+                        Path(__file__).resolve().parents[1] / "data" / "Exchange Rate.xlsx")
+    request = request_for("/tools/exchange-rate")
+    request.scope["query_string"] = f"year={year}".encode()
+    html = asyncio.run(mini_app_module.exchange_rate(request)).body.decode()
+    assert f'id="annualRate">{rate}</span>' in html
+    assert f'id="annualRateLabel">Annual TOI Exchange Rate ({year})</span>' in html
+    assert f'{method} - Corroborated by financial report; original notice not verified</small>' in html
+    assert 'published None' not in html
+    assert 'published null' not in html
+    assert f'id="annualRateUnit">KHR/USD</small>' in html

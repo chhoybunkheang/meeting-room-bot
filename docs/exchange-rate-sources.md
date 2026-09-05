@@ -20,17 +20,46 @@ describes the December year-end official-rate rule for annual TOI declarations.
 This is explanatory tax commentary; the numerical sources above are the GDT
 archives themselves. The page's annual TOI rates apply to December year ends.
 
+## Corroborated rates for 2014-2021
+
+The page now uses the following figures from the review. These are supported
+by published financial reports, not independently verified original GDT/NBC
+rate notices. The page explicitly displays that distinction and links to each
+supporting report. No official publication date has been invented for them.
+
+| Year | KHR per USD | Method | Supporting report |
+| --- | ---: | --- | --- |
+| 2014 | 4,038 | GDT annual rate reported in financial statements | [Phnom Penh Autonomous Port 2015](https://ppap.com.kh/wp-content/uploads/2024/11/Financial-Statement-FY-2015.pdf) |
+| 2015 | 4,060 | GDT annual rate reported in financial statements | [Phnom Penh Autonomous Port 2015](https://ppap.com.kh/wp-content/uploads/2024/11/Financial-Statement-FY-2015.pdf) |
+| 2016 | 4,037 | GDT annual average reported in financial statements | [Grand Twins 2017, note 4.2](https://www.acledasecurities.com.kh/as/assets/listed_company/GTI/FS-003-Financial%20Statements%202017.pdf) |
+| 2017 | 4,045 | GDT annual average reported in financial statements | [Grand Twins 2017, note 4.2](https://www.acledasecurities.com.kh/as/assets/listed_company/GTI/FS-003-Financial%20Statements%202017.pdf) |
+| 2018 | 4,045 | GDT annual average reported in financial statements | [Bank of China 2019, page 25](https://www.bankofchina.com.kh/dam/kh-kh/top/about-us/financial-report/annual-report/2019/annual-report-2019.pdf) |
+| 2019 | 4,052 | GDT annual average reported in financial statements | [Bank of China 2019, page 25](https://www.bankofchina.com.kh/dam/kh-kh/top/about-us/financial-report/annual-report/2019/annual-report-2019.pdf) |
+| 2020 | 4,045 | Year-end closing rate | [Equitable Cambodia 2021, note 2(c)](https://equitablecambodia.org/website/data/finance/EC-FS%202021%20-%20signed.pdf) |
+| 2021 | 4,074 | Year-end closing rate | [Equitable Cambodia 2021, note 2(c)](https://equitablecambodia.org/website/data/finance/EC-FS%202021%20-%20signed.pdf) |
+
+The year-end rule already applied from January 2020 under Instruction 27617
+of 12 December 2019, as explained by
+[KPMG's January 2020 update](https://assets.kpmg.com/content/dam/kpmg/kh/pdf/technical-update/2020/KPMG%20Tax%20Update%20-%20Jan%202020_The%20Law%20on%20Financial%20Management%20for%20year%202020.pdf).
+The previous assumption that all pre-2022 years used annual averages was incorrect.
+The financial-report evidence above does not independently establish all
+filing-specific instructions for 2014-2019; original announcements remain to be checked.
+
 ## Data handling
 
 - `annual_closing_rates` in `data/exchange_rate_updates.json` contains explicitly
   verified annual values, publication dates, source links, and verification dates.
   Add future years only after reviewing the corresponding official year-end
   publication. URL/date validation is a structural check, not source verification.
-- For 2022 onward, neither a workbook annual row nor a December monthly row is
+- For 2020 onward, neither a workbook annual row nor a December monthly row is
   accepted as proof of an annual TOI rate. A missing source leaves the annual
   value unavailable, including for completed years.
-- Pre-2022 annual averages remain historical reference values, not verified TOI
-  filing rates. World Bank/IMF source metadata is kept with those overrides.
+- `reported_annual_toi_rates` holds the corroborated 2014-2021 rates and their
+  evidence level. Direct official closing-rate sources take precedence over
+  financial-report evidence when both exist for a year.
+- Years before 2014 remain historical reference values, not verified TOI
+  filing rates. Historical averages are retained in the source JSON, but do not
+  override sourced TOI figures or fill missing year-end rates from 2020 onward.
 - Monthly coverage is calculated from the selected year's actual records. It is
   separate from the workbook file's modification time and the live daily feed.
 

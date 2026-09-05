@@ -34,7 +34,7 @@ MONTHS = {
 GDT_EXCHANGE_RATE_URL = "https://www.tax.gov.kh/gdtwebsiteweb/en/exchange-rate"
 GDT_CACHE_SECONDS = 6 * 60 * 60
 GDT_REFRESH_MIN_SECONDS = 30
-GDT_TOI_CLOSING_RATE_START_YEAR = 2022
+GDT_TOI_CLOSING_RATE_START_YEAR = 2020
 _gdt_cache = {"expires_at": 0.0, "value": None, "checked_at": None,
               "attempted_at": None, "stale": False}
 _gdt_cache_lock = threading.Lock()
@@ -134,6 +134,7 @@ def load_exchange_rates(path: str | Path) -> dict:
         updates = json.loads(updates_path.read_text(encoding="utf-8"))
         for annual_rate in updates.get("historical_annual_average_rates", []):
             year = int(annual_rate["year"])
+            years.setdefault(year, {"annual": None, "months": []})
             if year < GDT_TOI_CLOSING_RATE_START_YEAR:
                 years.setdefault(year, {"annual": None, "months": []})["annual"] = float(
                     annual_rate["rate"]
@@ -174,19 +175,38 @@ def load_exchange_rates(path: str | Path) -> dict:
         closing_rates[year] = source
         years.setdefault(year, {"annual": None, "months": []})
 
+    reported_rates = {}
+    for source in updates.get("reported_annual_toi_rates", []):
+        year = int(source["year"])
+        rate = float(source["rate"])
+        url = urlparse(source["source_url"])
+        expected_method = "gdt_year_end" if year >= GDT_TOI_CLOSING_RATE_START_YEAR else "gdt_annual_average"
+        if (not 1900 <= year <= 2200 or not math.isfinite(rate) or rate <= 0
+                or url.scheme != "https" or not url.hostname
+                or source["annual_method"] != expected_method
+                or source.get("verification") != "financial_report"):
+            raise ValueError("Invalid reported annual TOI rate")
+        reported_rates[year] = source
+        years.setdefault(year, {"annual": None, "months": []})
+
     for year, record in years.items():
         record["months"].sort(key=lambda month: month["number"])
-        source = closing_rates.get(year)
-        if year >= GDT_TOI_CLOSING_RATE_START_YEAR:
+        source = closing_rates.get(year) or reported_rates.get(year)
+        if source or year >= GDT_TOI_CLOSING_RATE_START_YEAR:
             record["annual"] = float(source["rate"]) if source else None
         record["annual_source_url"] = source["source_url"] if source else (
             updates.get("historical_annual_average_source_url")
             if any(int(row["year"]) == year for row in updates.get("historical_annual_average_rates", []))
             else None
         )
-        record["annual_published_at"] = source["published_at"] if source else None
+        record["annual_published_at"] = source.get("published_at") if source else None
+        record["annual_verification"] = (
+            "official_publication" if year in closing_rates else
+            "financial_report" if source else None
+        )
         record["toi_rate_available"] = source is not None
         record["annual_method"] = (
+            source.get("annual_method", "gdt_year_end") if source else
             "historical_average"
             if record["annual"] is not None and year < GDT_TOI_CLOSING_RATE_START_YEAR
             else "gdt_year_end"
