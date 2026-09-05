@@ -97,10 +97,11 @@ For local testing, create a `.env` file:
 
 ```env
 BOT_TOKEN=your_token
-SPREADSHEET_URL=your_sheet_url
+DATABASE_URL=postgresql+psycopg2://user:password@host/database
 GROUP_CHAT_ID=your_chat_id
 ADMIN_ID=your_admin_id
-GOOGLE_CREDENTIALS={"type":"service_account",...}
+MINI_APP_URL=https://your-web-service.example.com
+MEETING_TIMEZONE=Asia/Phnom_Penh
 USE_WEBHOOK=false
 ```
 

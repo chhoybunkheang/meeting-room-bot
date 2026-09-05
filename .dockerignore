@@ -1,6 +1,8 @@
 .git
 .gitignore
 .env
+.env*
+google_credentials.json
 __pycache__/
 *.pyc
 *.pyo

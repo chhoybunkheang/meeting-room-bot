@@ -15,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from telegram import Bot
+from booking_validation import validate_booking_interval
 from exchange_rates import fetch_latest_gdt_rate, format_rate, load_exchange_rates
 from telegram_auth import validate_telegram_init_data as validate_signed_init_data
 
@@ -272,10 +273,15 @@ def parse_booking_datetime_values(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid date or time") from exc
 
-    if booking_date_value < current_meeting_datetime().date():
-        raise HTTPException(status_code=400, detail="Date cannot be in the past")
-    if end_time_value <= start_time_value:
-        raise HTTPException(status_code=400, detail="End time must be after start time")
+    try:
+        validate_booking_interval(
+            booking_date_value,
+            start_time_value,
+            end_time_value,
+            current_meeting_datetime(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return booking_date_value, start_time_value, end_time_value
 
@@ -681,25 +687,29 @@ async def create_booking(
             status_code=400,
         )
 
-    if end_time_value <= start_time_value:
-        return templates.TemplateResponse(
-            request=request,
-            name="booking_error.html",
-            context={
-                "error_title": "Invalid time",
-                "error_message": "End time must be later than start time.",
-                "bot_username": bot_username,
-            },
-            status_code=400,
+    try:
+        validate_booking_interval(
+            booking_date_value,
+            start_time_value,
+            end_time_value,
+            current_meeting_datetime(),
         )
-
-    if booking_date_value < current_meeting_datetime().date():
+    except ValueError as exc:
+        if str(exc) == "End time must be after start time":
+            error_title = "Invalid time"
+            error_message = "End time must be later than start time."
+        elif str(exc) == "Date cannot be in the past":
+            error_title = "Invalid date"
+            error_message = "You cannot book a date in the past."
+        else:
+            error_title = "Invalid booking time"
+            error_message = str(exc)
         return templates.TemplateResponse(
             request=request,
             name="booking_error.html",
             context={
-                "error_title": "Invalid date",
-                "error_message": "You cannot book a date in the past.",
+                "error_title": error_title,
+                "error_message": error_message,
                 "bot_username": bot_username,
             },
             status_code=400,
