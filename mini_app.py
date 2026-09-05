@@ -390,16 +390,21 @@ def cancel_active_booking(
 
 def format_current_schedule() -> str:
     """Build a compact upcoming schedule for group notifications."""
-    current_date = current_meeting_datetime().date()
+    meeting_now = current_meeting_datetime()
+    current_date = meeting_now.date()
+    current_time = meeting_now.time().replace(tzinfo=None)
     with engine.connect() as conn:
         total_bookings = conn.execute(
             text("""
                 SELECT COUNT(*)
                 FROM bookings
                 WHERE status = 'BOOKED'
-                  AND booking_date >= :current_date
+                  AND (
+                      booking_date > :current_date
+                      OR (booking_date = :current_date AND end_time > :current_time)
+                  )
             """),
-            {"current_date": current_date},
+            {"current_date": current_date, "current_time": current_time},
         ).scalar_one()
 
         bookings = (
@@ -412,12 +417,16 @@ def format_current_schedule() -> str:
                         end_time
                     FROM bookings
                     WHERE status = 'BOOKED'
-                      AND booking_date >= :current_date
+                                            AND (
+                                                    booking_date > :current_date
+                                                    OR (booking_date = :current_date AND end_time > :current_time)
+                                            )
                     ORDER BY booking_date, start_time
                     LIMIT :limit
                 """),
                 {
                     "current_date": current_date,
+                    "current_time": current_time,
                     "limit": SCHEDULE_NOTIFICATION_LIMIT,
                 },
             )
@@ -494,6 +503,7 @@ async def home(
     filter_date = today + timedelta(days=1) if schedule_filter == "tomorrow" else today
     query_parameters = {
         "today": today,
+        "current_time": current_meeting_datetime().time().replace(tzinfo=None),
         "schedule_filter": schedule_filter,
         "filter_date": filter_date,
     }
@@ -504,7 +514,10 @@ async def home(
                 SELECT COUNT(*)
                 FROM bookings
                 WHERE status = 'BOOKED'
-                  AND booking_date >= :today
+                                    AND (
+                                            booking_date > :today
+                                            OR (booking_date = :today AND end_time > :current_time)
+                                    )
                   AND (
                       :schedule_filter = 'all'
                       OR booking_date = :filter_date
@@ -530,7 +543,10 @@ async def home(
                         end_time
                     FROM bookings
                     WHERE status = 'BOOKED'
-                      AND booking_date >= :today
+                                            AND (
+                                                    booking_date > :today
+                                                    OR (booking_date = :today AND end_time > :current_time)
+                                            )
                       AND (
                           :schedule_filter = 'all'
                           OR booking_date = :filter_date
@@ -836,11 +852,15 @@ async def my_bookings(
                 FROM bookings
                 WHERE telegram_user_id = :telegram_user_id
                   AND status = 'BOOKED'
-                  AND booking_date >= :current_date
+                  AND (
+                      booking_date > :current_date
+                      OR (booking_date = :current_date AND end_time > :current_time)
+                  )
             """),
             {
                 "telegram_user_id": telegram_user_id,
                 "current_date": meeting_now.date(),
+                "current_time": meeting_now.time().replace(tzinfo=None),
             },
         ).scalar_one()
         total_pages = max(
@@ -861,13 +881,17 @@ async def my_bookings(
                     FROM bookings
                     WHERE telegram_user_id = :telegram_user_id
                       AND status = 'BOOKED'
-                      AND booking_date >= :current_date
+                      AND (
+                          booking_date > :current_date
+                          OR (booking_date = :current_date AND end_time > :current_time)
+                      )
                     ORDER BY booking_date, start_time
                     LIMIT :limit OFFSET :offset
                 """),
                 {
                     "telegram_user_id": telegram_user_id,
                     "current_date": meeting_now.date(),
+                    "current_time": meeting_now.time().replace(tzinfo=None),
                     "limit": BOOKINGS_PER_PAGE,
                     "offset": (page - 1) * BOOKINGS_PER_PAGE,
                 },
@@ -1200,11 +1224,18 @@ def render_admin_dashboard(
                            booking_date, start_time, end_time
                     FROM bookings
                     WHERE status = 'BOOKED'
-                      AND booking_date >= :today
+                                            AND (
+                                                    booking_date > :today
+                                                    OR (booking_date = :today AND end_time > :current_time)
+                                            )
                       AND user_name NOT LIKE :block_pattern
                     ORDER BY booking_date, start_time
                 """),
-                {"today": today, "block_pattern": block_pattern},
+                {
+                    "today": today,
+                    "current_time": now.time().replace(tzinfo=None),
+                    "block_pattern": block_pattern,
+                },
             )
             .mappings()
             .all()
@@ -1216,11 +1247,18 @@ def render_admin_dashboard(
                     SELECT id, user_name, booking_date, start_time, end_time
                     FROM bookings
                     WHERE status = 'BOOKED'
-                      AND booking_date >= :today
+                                            AND (
+                                                    booking_date > :today
+                                                    OR (booking_date = :today AND end_time > :current_time)
+                                            )
                       AND user_name LIKE :block_pattern
                     ORDER BY booking_date, start_time
                 """),
-                {"today": today, "block_pattern": block_pattern},
+                {
+                    "today": today,
+                    "current_time": now.time().replace(tzinfo=None),
+                    "block_pattern": block_pattern,
+                },
             )
             .mappings()
             .all()
